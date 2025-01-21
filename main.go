@@ -1,4 +1,4 @@
-// Copyright 2025 The Metal Authors. All rights reserved.
+// Copyright 2025 The Soda Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -9,6 +9,8 @@ import (
 	"flag"
 	"fmt"
 	"math"
+
+	"github.com/pointlander/soda/vector"
 )
 
 const (
@@ -325,14 +327,8 @@ func sqrt(a float32) float32 {
 }
 
 // CS is float32 cosine similarity
-func CS(t []float32, vector []float32) float32 {
-	aa, bb, ab := float32(0.0), float32(0.0), float32(0.0)
-	for i := range vector {
-		a, b := vector[i], t[i]
-		aa += a * a
-		bb += b * b
-		ab += a * b
-	}
+func CS(a []float32, b []float32) float32 {
+	aa, bb, ab := vector.Dot(a, a), vector.Dot(b, b), vector.Dot(a, b)
 	return float32(ab / (sqrt(aa) * sqrt(bb)))
 }
 
