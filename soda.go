@@ -395,36 +395,29 @@ func Soda() {
 	done := make(chan Result, 8)
 	search := func(r, index int, data []float32) {
 		max, symbol := float32(0.0), byte(0)
-		buffer32, vector, buffer8 := make([]byte, 4*256), make([]float32, 256), make([]byte, 1)
+		buffer, vector := make([]byte, sizes[index]*(4*256+1)), make([]float32, 256)
 		_, err := in[r].Seek(int64(offset+sums[index]*(4*256+1)), io.SeekStart)
 		if err != nil {
 			panic(err)
 		}
+		n, err := in[r].Read(buffer)
+		if err != nil {
+			panic(err)
+		}
+		if n != len(buffer) {
+			panic(fmt.Sprintf("%d bytes should have been read", len(buffer)))
+		}
 		for j := 0; j < int(sizes[index]); j++ {
-			n, err := in[r].Read(buffer32)
-			if err != nil {
-				panic(err)
-			}
-			if n != len(buffer32) {
-				panic("1024 bytes should have been read")
-			}
-			for j := range vector {
+			for k := range vector {
 				var bits uint32
-				for k := 0; k < 4; k++ {
-					bits |= uint32(buffer32[4*j+k]) << (8 * k)
+				for l := 0; l < 4; l++ {
+					bits |= uint32(buffer[j*(4*256+1)+4*k+l]) << (8 * l)
 				}
-				vector[j] = math.Float32frombits(bits)
-			}
-			n, err = in[r].Read(buffer8)
-			if err != nil {
-				panic(err)
-			}
-			if n != len(buffer8) {
-				panic("1 byte should have been read")
+				vector[k] = math.Float32frombits(bits)
 			}
 			cs := CS(vector, data)
 			if cs > max {
-				max, symbol = cs, buffer8[0]
+				max, symbol = cs, buffer[j*(4*256+1)+4*256]
 			}
 		}
 		done <- Result{
