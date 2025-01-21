@@ -354,5 +354,11 @@ const (
 
 func main() {
 	flag.Parse()
+
+	if *FlagBuild {
+		Build()
+		return
+	}
+
 	Soda()
 }
