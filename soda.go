@@ -13,7 +13,6 @@ import (
 	"os"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/pointlander/gradient/tf32"
@@ -37,6 +36,13 @@ const (
 	Offset = ModelSize * 1024 * HeaderLineSize
 )
 
+// Output is the output of the model
+type Output struct {
+	Index  uint64 `json:"index"`
+	Symbol byte   `json:"symbol"`
+}
+
+// Result is an index search result
 type Result struct {
 	Index  int
 	Vector uint64
@@ -56,9 +62,12 @@ func process(done chan Result, model []Bucket, pool []Vector, vector uint64) {
 	}
 }
 
+// Header is an index
+type Header []Bucket
+
 // NewHeader generates a new header
-func NewHeader(data []byte) []Bucket {
-	model := make([]Bucket, ModelSize*1024)
+func NewHeader(data []byte) Header {
+	model := make(Header, ModelSize*1024)
 	rng := rand.New(rand.NewSource(1))
 
 	avg := make([]float64, 256)
@@ -218,6 +227,54 @@ func NewHeader(data []byte) []Bucket {
 	return model
 }
 
+// LoadHeader loads the header
+func LoadHeader() (Header, []uint64, []uint64) {
+	model := make(Header, ModelSize*1024)
+	sizes := make([]uint64, ModelSize*1024)
+	in, err := os.Open("db.bin")
+	if err != nil {
+		panic(err)
+	}
+	defer in.Close()
+
+	buffer32 := make([]byte, 4)
+	buffer64 := make([]byte, 8)
+	for i := range model {
+		for j := range model[i].Vector {
+			n, err := in.Read(buffer32)
+			if err != nil {
+				panic(err)
+			}
+			if n != len(buffer32) {
+				panic("4 bytes should have been read")
+			}
+			var bits uint32
+			for i := range buffer32 {
+				bits |= uint32(buffer32[i]) << (8 * i)
+			}
+			model[i].Vector[j] = math.Float32frombits(bits)
+		}
+		var count uint64
+		n, err := in.Read(buffer64)
+		if err != nil {
+			panic(err)
+		}
+		if n != len(buffer64) {
+			panic("4 bytes should have been read")
+		}
+		for i := range buffer64 {
+			count |= uint64(buffer64[i]) << (8 * i)
+		}
+		sizes[i] = count
+	}
+	sums, sum := make([]uint64, len(sizes)), uint64(0)
+	for i, v := range sizes {
+		sums[i] = sum
+		sum += v
+	}
+	return model, sizes, sums
+}
+
 // Build builds the model
 func Build() {
 	cpus := runtime.NumCPU()
@@ -353,9 +410,7 @@ func Build() {
 }
 
 // Soda is the soda model
-func Soda() {
-	model := make([]Bucket, ModelSize*1024)
-	sizes := make([]uint64, ModelSize*1024)
+func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 	in := make([]*os.File, Queries)
 	for i := range in {
 		var err error
@@ -369,51 +424,15 @@ func Soda() {
 			in[i].Close()
 		}
 	}()
-	buffer32 := make([]byte, 4)
-	buffer64 := make([]byte, 8)
-	for i := range model {
-		for j := range model[i].Vector {
-			n, err := in[0].Read(buffer32)
-			if err != nil {
-				panic(err)
-			}
-			if n != len(buffer32) {
-				panic("4 bytes should have been read")
-			}
-			var bits uint32
-			for i := range buffer32 {
-				bits |= uint32(buffer32[i]) << (8 * i)
-			}
-			model[i].Vector[j] = math.Float32frombits(bits)
-		}
-		var count uint64
-		n, err := in[0].Read(buffer64)
-		if err != nil {
-			panic(err)
-		}
-		if n != len(buffer64) {
-			panic("4 bytes should have been read")
-		}
-		for i := range buffer64 {
-			count |= uint64(buffer64[i]) << (8 * i)
-		}
-		sizes[i] = count
-	}
-	sums, sum := make([]uint64, len(sizes)), uint64(0)
-	for i, v := range sizes {
-		sums[i] = sum
-		sum += v
-	}
 
 	m := NewMixer()
-	for _, v := range []byte(*FlagQuery) {
+	for _, v := range query {
 		m.Add(v)
 	}
 
 	type Result struct {
-		Index  uint64
-		Symbol byte
-		Max    float32
+		Output
+		Max float32
 	}
 	done := make(chan Result, 8)
 	search := func(r, index int, data []float32) {
@@ -447,51 +466,49 @@ func Soda() {
 			}
 		}
 		done <- Result{
-			Index:  symbolIndex,
-			Symbol: symbol,
-			Max:    max,
+			Output: Output{
+				Index:  symbolIndex,
+				Symbol: symbol,
+			},
+			Max: max,
 		}
 	}
-	sample := func(m Mixer) string {
-		result := make([]byte, 0, 8)
-		for i := 0; i < 128; i++ {
-			var data [256]float32
-			m.Mix(&data)
-			type Index struct {
-				Index int
-				Value float32
-			}
-			indexes := make([]Index, len(model))
-			for i := range model {
-				if sizes[i] == 0 {
-					continue
-				}
-				indexes[i].Index = i
-				indexes[i].Value = CS(model[i].Vector[:], data[:])
-			}
-			sort.Slice(indexes, func(i, j int) bool {
-				return indexes[i].Value > indexes[j].Value
-			})
 
-			var results []Result
-			for j := 0; j < Queries; j++ {
-				go search(j, indexes[j].Index, data[:])
-			}
-			for j := 0; j < Queries; j++ {
-				result := <-done
-				results = append(results, result)
-			}
-			sort.Slice(results, func(i, j int) bool {
-				return results[i].Max > results[j].Max
-			})
-
-			index, symbol := results[0].Index, results[0].Symbol
-			fmt.Printf("%d %d %s\n", index, symbol, strconv.Quote(string(symbol)))
-			m.Add(symbol)
-			result = append(result, symbol)
+	result := make([]Output, 0, 8)
+	for i := 0; i < 128; i++ {
+		var data [256]float32
+		m.Mix(&data)
+		type Index struct {
+			Index int
+			Value float32
 		}
-		return string(result)
+		indexes := make([]Index, len(h))
+		for i := range h {
+			if sizes[i] == 0 {
+				continue
+			}
+			indexes[i].Index = i
+			indexes[i].Value = CS(h[i].Vector[:], data[:])
+		}
+		sort.Slice(indexes, func(i, j int) bool {
+			return indexes[i].Value > indexes[j].Value
+		})
+
+		var results []Result
+		for j := 0; j < Queries; j++ {
+			go search(j, indexes[j].Index, data[:])
+		}
+		for j := 0; j < Queries; j++ {
+			result := <-done
+			results = append(results, result)
+		}
+		sort.Slice(results, func(i, j int) bool {
+			return results[i].Max > results[j].Max
+		})
+
+		m.Add(results[0].Symbol)
+		result = append(result, results[0].Output)
 	}
-	result := sample(m.Copy())
-	fmt.Println(result)
+
+	return result
 }

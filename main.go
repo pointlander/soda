@@ -333,5 +333,11 @@ func main() {
 		return
 	}
 
-	Soda()
+	header, sizes, sums := LoadHeader()
+	output := header.Soda(sizes, sums, []byte(*FlagQuery))
+	str := []byte(*FlagQuery)
+	for i := range output {
+		str = append(str, output[i].Symbol)
+	}
+	fmt.Println(string(str))
 }
