@@ -27,6 +27,14 @@ import (
 const (
 	// ModelSize is the model size
 	ModelSize = 8
+	// Queries is the number of queries
+	Queries = 4
+	// HeaderLineSize is the size of a header line
+	HeaderLineSize = 4*256 + 1*8
+	// EntryLineSize is the size of an entry line
+	EntryLineSize = 4*256 + 1
+	// Offset is the offset to the entries
+	Offset = ModelSize * 1024 * HeaderLineSize
 )
 
 // Build builds the model
@@ -276,7 +284,7 @@ func Build() {
 	for i := range model {
 		for _, v := range model[i].Vector {
 			bits := math.Float32bits(v)
-			for i := 0; i < 4; i++ {
+			for i := range buffer32 {
 				buffer32[i] = byte((bits >> (8 * i)) & 0xFF)
 			}
 			n, err := db.Write(buffer32)
@@ -288,7 +296,7 @@ func Build() {
 			}
 		}
 		count := uint64(len(model[i].Vectors))
-		for i := 0; i < 8; i++ {
+		for i := range buffer64 {
 			buffer64[i] = byte((count >> (8 * i)) & 0xFF)
 		}
 		n, err := db.Write(buffer64)
@@ -305,7 +313,7 @@ func Build() {
 		for _, vector := range model[i].Vectors {
 			for _, v := range vector.Vector {
 				bits := math.Float32bits(v)
-				for i := 0; i < 4; i++ {
+				for i := range buffer32 {
 					buffer32[i] = byte((bits >> (8 * i)) & 0xFF)
 				}
 				n, err := db.Write(buffer32)
@@ -332,7 +340,7 @@ func Build() {
 func Soda() {
 	model := [ModelSize * 1024]Bucket{}
 	sizes := make([]uint64, ModelSize*1024)
-	in := make([]*os.File, 4)
+	in := make([]*os.File, Queries)
 	for i := range in {
 		var err error
 		in[i], err = os.Open("tdb.bin")
@@ -394,12 +402,11 @@ func Soda() {
 		Symbol byte
 		Max    float32
 	}
-	const offset = ModelSize * 1024 * (4*256 + 1*8)
 	done := make(chan Result, 8)
 	search := func(r, index int, data []float32) {
 		max, symbol := float32(0.0), byte(0)
-		buffer, vector := make([]byte, sizes[index]*(4*256+1)), make([]float32, 256)
-		_, err := in[r].Seek(int64(offset+sums[index]*(4*256+1)), io.SeekStart)
+		buffer, vector := make([]byte, sizes[index]*EntryLineSize), make([]float32, 256)
+		_, err := in[r].Seek(int64(Offset+sums[index]*EntryLineSize), io.SeekStart)
 		if err != nil {
 			panic(err)
 		}
@@ -414,13 +421,13 @@ func Soda() {
 			for k := range vector {
 				var bits uint32
 				for l := 0; l < 4; l++ {
-					bits |= uint32(buffer[j*(4*256+1)+4*k+l]) << (8 * l)
+					bits |= uint32(buffer[j*EntryLineSize+4*k+l]) << (8 * l)
 				}
 				vector[k] = math.Float32frombits(bits)
 			}
 			cs := CS(vector, data)
 			if cs > max {
-				max, symbol = cs, buffer[j*(4*256+1)+4*256]
+				max, symbol = cs, buffer[(j+1)*EntryLineSize-1]
 			}
 		}
 		done <- Result{
@@ -445,10 +452,10 @@ func Soda() {
 			})
 
 			var results []Result
-			for j := 0; j < 4; j++ {
+			for j := 0; j < Queries; j++ {
 				go search(j, indexes[j].Index, data)
 			}
-			for j := 0; j < 4; j++ {
+			for j := 0; j < Queries; j++ {
 				result := <-done
 				results = append(results, result)
 			}
