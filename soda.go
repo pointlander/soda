@@ -42,7 +42,7 @@ type Result struct {
 	Vector uint64
 }
 
-func process(done chan Result, model *[ModelSize * 1024]Bucket, pool []Vector, vector uint64) {
+func process(done chan Result, model []Bucket, pool []Vector, vector uint64) {
 	query, index, max := pool[vector].Vector[:], 0, float32(0.0)
 	for i := range model {
 		cs := CS(query, model[i].Vector[:])
@@ -56,21 +56,9 @@ func process(done chan Result, model *[ModelSize * 1024]Bucket, pool []Vector, v
 	}
 }
 
-// Build builds the model
-func Build() {
-	cpus := runtime.NumCPU()
-	file, err := Data.Open("books/10.txt.utf-8.bz2")
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-	reader := bzip2.NewReader(file)
-	input, err := io.ReadAll(reader)
-	if err != nil {
-		panic(err)
-	}
-	data := input
-	pool, item := make([]Vector, len(data)+1), uint64(1)
+// NewHeader generates a new header
+func NewHeader(data []byte) []Bucket {
+	model := make([]Bucket, ModelSize*1024)
 	rng := rand.New(rand.NewSource(1))
 
 	avg := make([]float64, 256)
@@ -216,7 +204,6 @@ func Build() {
 		A.Data = append(A.Data, float64(v))
 	}
 	u := NewMatrix(256, 1, avg...)
-	model := [ModelSize * 1024]Bucket{}
 	fmt.Println(ModelSize * 1024 * 512 * 4.0 / (1024.0 * 1024.0 * 1024.0))
 	for i := range model {
 		z := NewMatrix(256, 1)
@@ -228,14 +215,33 @@ func Build() {
 			model[i].Vector[j] = float32(v)
 		}
 	}
+	return model
+}
 
-	done, m, index, flight := make(chan Result, 8), NewMixer(), 0, 0
+// Build builds the model
+func Build() {
+	cpus := runtime.NumCPU()
+	file, err := Data.Open("books/10.txt.utf-8.bz2")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+	reader := bzip2.NewReader(file)
+	input, err := io.ReadAll(reader)
+	if err != nil {
+		panic(err)
+	}
+	data := input
+	model := NewHeader(data)
+	pool, item := make([]Vector, len(data)+1), uint64(1)
+
+	done, m, index, flight := make(chan Result, cpus), NewMixer(), 0, 0
 	m.Add(0)
 	for index < len(data) && flight < cpus {
 		symbol := data[index]
 		m.Mix(&pool[item].Vector)
 		pool[item].Symbol = uint64(index)
-		go process(done, &model, pool, item)
+		go process(done, model, pool, item)
 		item++
 		m.Add(symbol)
 		flight++
@@ -251,13 +257,16 @@ func Build() {
 		symbol := data[index]
 		m.Mix(&pool[item].Vector)
 		pool[item].Symbol = uint64(index)
-		go process(done, &model, pool, item)
+		go process(done, model, pool, item)
 		item++
 		m.Add(symbol)
 		flight++
 		index++
 		if index%8 == 0 {
 			fmt.Println(index, "/", len(data), "=", float64(index)/float64(len(data)))
+		}
+		if index%128 == 0 {
+			runtime.GC()
 		}
 	}
 	for i := 0; i < flight; i++ {
@@ -345,7 +354,7 @@ func Build() {
 
 // Soda is the soda model
 func Soda() {
-	model := [ModelSize * 1024]Bucket{}
+	model := make([]Bucket, ModelSize*1024)
 	sizes := make([]uint64, ModelSize*1024)
 	in := make([]*os.File, Queries)
 	for i := range in {
