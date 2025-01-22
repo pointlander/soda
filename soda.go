@@ -267,7 +267,7 @@ func Build() {
 		model[result.Index].Count++
 	}
 
-	db, err := os.Create("tdb.bin")
+	db, err := os.Create("db.bin")
 	if err != nil {
 		panic(err)
 	}
@@ -350,7 +350,7 @@ func Soda() {
 	in := make([]*os.File, Queries)
 	for i := range in {
 		var err error
-		in[i], err = os.Open("tdb.bin")
+		in[i], err = os.Open("db.bin")
 		if err != nil {
 			panic(err)
 		}
