@@ -119,22 +119,6 @@ func (m Matrix) Entropy() Matrix {
 	return output
 }
 
-// Sum sums the rows of a matrix
-func (m Matrix) Sum() Matrix {
-	o := Matrix{
-		Cols: m.Cols,
-		Rows: 1,
-		Data: make([]float64, m.Cols),
-	}
-	for i := 0; i < m.Rows; i++ {
-		offset := i * m.Cols
-		for j := range o.Data {
-			o.Data[j] += m.Data[offset+j]
-		}
-	}
-	return o
-}
-
 // T tramsposes a matrix
 func (m Matrix) T() Matrix {
 	o := Matrix{
@@ -148,15 +132,6 @@ func (m Matrix) T() Matrix {
 		}
 	}
 	return o
-}
-
-// Float32 returns a float32 array
-func (m Matrix) Float32() []float32 {
-	output := make([]float32, len(m.Data))
-	for i := range output {
-		output[i] = float32(m.Data[i])
-	}
-	return output
 }
 
 func dot(x, y []float64) (z float64) {
@@ -185,29 +160,22 @@ func softmax(values []float64) {
 }
 
 // SelfAttention computes the self attention of Q, K, V
-func SelfAttention(Q, K, V Matrix) Matrix {
-	o := Matrix{
-		Cols: V.Cols,
-		Rows: K.Rows,
-		Data: make([]float64, 0, V.Rows*K.Rows),
-	}
-	outputs, values := make([]float64, V.Cols), make([]float64, Q.Rows)
-	V = V.T()
-	for i := 0; i < K.Rows; i++ {
-		K := K.Data[i*K.Cols : (i+1)*K.Cols]
-		for j := 0; j < Q.Rows; j++ {
-			Q := Q.Data[j*Q.Cols : (j+1)*Q.Cols]
+func SelfAttention(input Matrix, output *[256]float32) {
+	values := make([]float64, input.Rows)
+	V := input.T()
+	for i := 0; i < input.Rows; i++ {
+		K := input.Data[i*input.Cols : (i+1)*input.Cols]
+		for j := 0; j < input.Rows; j++ {
+			Q := input.Data[j*input.Cols : (j+1)*input.Cols]
 			values[j] = dot(K, Q)
 		}
 		softmax(values)
 
 		for j := 0; j < V.Rows; j++ {
 			V := V.Data[j*V.Cols : (j+1)*V.Cols]
-			outputs[j] = dot(values, V)
+			output[j] += float32(dot(values, V))
 		}
-		o.Data = append(o.Data, outputs...)
 	}
-	return o
 }
 
 // Markov is a markov model
@@ -285,7 +253,7 @@ func (m *Mixer) Add(s byte) {
 }
 
 // Mix mixes the histograms outputting a matrix
-func (m Mixer) Mix() Matrix {
+func (m Mixer) Mix(output *[256]float32) {
 	x := NewMatrix(256, Size)
 	for i := range m.Histograms {
 		sum := 0.0
@@ -296,8 +264,7 @@ func (m Mixer) Mix() Matrix {
 			x.Data = append(x.Data, float64(v)/sum)
 		}
 	}
-	y := SelfAttention(x, x, x)
-	return y
+	SelfAttention(x, output)
 }
 
 //go:embed books/*

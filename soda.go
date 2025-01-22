@@ -37,6 +37,25 @@ const (
 	Offset = ModelSize * 1024 * HeaderLineSize
 )
 
+type Result struct {
+	Index  int
+	Vector uint64
+}
+
+func process(done chan Result, model *[ModelSize * 1024]Bucket, pool []Vector, vector uint64) {
+	query, index, max := pool[vector].Vector[:], 0, float32(0.0)
+	for i := range model {
+		cs := CS(query, model[i].Vector[:])
+		if cs > max {
+			max, index = cs, i
+		}
+	}
+	done <- Result{
+		Index:  index,
+		Vector: vector,
+	}
+}
+
 // Build builds the model
 func Build() {
 	cpus := runtime.NumCPU()
@@ -58,9 +77,10 @@ func Build() {
 	m := NewMixer()
 	m.Add(0)
 	for _, v := range data {
-		vector := m.Mix().Sum()
-		for i, v := range vector.Data {
-			avg[i] += v
+		var vector [256]float32
+		m.Mix(&vector)
+		for i, v := range vector {
+			avg[i] += float64(v)
 		}
 		m.Add(v)
 	}
@@ -71,11 +91,12 @@ func Build() {
 	m = NewMixer()
 	m.Add(0)
 	for _, v := range data {
-		vector := m.Mix().Sum()
-		for i, v := range vector.Data {
-			for ii, vv := range vector.Data {
-				diff1 := avg[i] - v
-				diff2 := avg[ii] - vv
+		var vector [256]float32
+		m.Mix(&vector)
+		for i, v := range vector {
+			for ii, vv := range vector {
+				diff1 := avg[i] - float64(v)
+				diff2 := avg[ii] - float64(vv)
 				cov[i][ii] += diff1 * diff2
 			}
 		}
@@ -208,33 +229,14 @@ func Build() {
 		}
 	}
 
-	type Result struct {
-		Index  int
-		Symbol uint64
-		Vector []float32
-	}
-	done := make(chan Result, 8)
-	process := func(symbol uint64, query []float32) {
-		index, max := 0, float32(0.0)
-		for i := range model {
-			cs := CS(model[i].Vector[:], query)
-			if cs > max {
-				max, index = cs, i
-			}
-		}
-		done <- Result{
-			Index:  index,
-			Vector: query,
-			Symbol: symbol,
-		}
-	}
-
-	m, index, flight := NewMixer(), 0, 0
+	done, m, index, flight := make(chan Result, 8), NewMixer(), 0, 0
 	m.Add(0)
 	for index < len(data) && flight < cpus {
 		symbol := data[index]
-		vector := m.Mix().Float32()
-		go process(uint64(index), vector)
+		m.Mix(&pool[item].Vector)
+		pool[item].Symbol = uint64(index)
+		go process(done, &model, pool, item)
+		item++
 		m.Add(symbol)
 		flight++
 		index++
@@ -242,16 +244,15 @@ func Build() {
 	for index < len(data) {
 		result := <-done
 		flight--
-		pool[item].Symbol = result.Symbol
-		copy(pool[item].Vector[:], result.Vector)
-		pool[item].Next = model[result.Index].Vectors
-		model[result.Index].Vectors = item
+		pool[result.Vector].Next = model[result.Index].Vectors
+		model[result.Index].Vectors = result.Vector
 		model[result.Index].Count++
-		item++
 
 		symbol := data[index]
-		vector := m.Mix().Float32()
-		go process(uint64(index), vector)
+		m.Mix(&pool[item].Vector)
+		pool[item].Symbol = uint64(index)
+		go process(done, &model, pool, item)
+		item++
 		m.Add(symbol)
 		flight++
 		index++
@@ -261,13 +262,9 @@ func Build() {
 	}
 	for i := 0; i < flight; i++ {
 		result := <-done
-
-		pool[item].Symbol = result.Symbol
-		copy(pool[item].Vector[:], result.Vector)
-		pool[item].Next = model[result.Index].Vectors
-		model[result.Index].Vectors = item
+		pool[result.Vector].Next = model[result.Index].Vectors
+		model[result.Index].Vectors = result.Vector
 		model[result.Index].Count++
-		item++
 	}
 
 	db, err := os.Create("tdb.bin")
@@ -449,7 +446,8 @@ func Soda() {
 	sample := func(m Mixer) string {
 		result := make([]byte, 0, 8)
 		for i := 0; i < 128; i++ {
-			data := m.Mix().Sum().Float32()
+			var data [256]float32
+			m.Mix(&data)
 			type Index struct {
 				Index int
 				Value float32
@@ -460,7 +458,7 @@ func Soda() {
 					continue
 				}
 				indexes[i].Index = i
-				indexes[i].Value = CS(model[i].Vector[:], data)
+				indexes[i].Value = CS(model[i].Vector[:], data[:])
 			}
 			sort.Slice(indexes, func(i, j int) bool {
 				return indexes[i].Value > indexes[j].Value
@@ -468,7 +466,7 @@ func Soda() {
 
 			var results []Result
 			for j := 0; j < Queries; j++ {
-				go search(j, indexes[j].Index, data)
+				go search(j, indexes[j].Index, data[:])
 			}
 			for j := 0; j < Queries; j++ {
 				result := <-done
