@@ -436,7 +436,7 @@ func Soda() {
 			if cs > max {
 				max, symbolIndex, symbol = cs, 0, buffer[(j+1)*EntryLineSize-1-8]
 				for k := 0; k < 8; k++ {
-					symbolIndex |= uint64(buffer[(j+1)*EntryLineSize-8]) << (8 * k)
+					symbolIndex |= uint64(buffer[(j+1)*EntryLineSize-8+k]) << (8 * k)
 				}
 			}
 		}
