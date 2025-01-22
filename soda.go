@@ -32,7 +32,7 @@ const (
 	// HeaderLineSize is the size of a header line
 	HeaderLineSize = 4*256 + 1*8
 	// EntryLineSize is the size of an entry line
-	EntryLineSize = 4*256 + 1
+	EntryLineSize = 4*256 + 1 + 8
 	// Offset is the offset to the entries
 	Offset = ModelSize * 1024 * HeaderLineSize
 )
@@ -51,6 +51,7 @@ func Build() {
 		panic(err)
 	}
 	data := input
+	pool, item := make([]Vector, len(data)+1), uint64(1)
 	rng := rand.New(rand.NewSource(1))
 
 	avg := make([]float64, 256)
@@ -209,12 +210,11 @@ func Build() {
 
 	type Result struct {
 		Index  int
+		Symbol uint64
 		Vector []float32
-		Symbol byte
 	}
 	done := make(chan Result, 8)
-	process := func(symbol byte, vector Matrix) {
-		query := vector.Sum().Float32()
+	process := func(symbol uint64, query []float32) {
 		index, max := 0, float32(0.0)
 		for i := range model {
 			cs := CS(model[i].Vector[:], query)
@@ -233,8 +233,8 @@ func Build() {
 	m.Add(0)
 	for index < len(data) && flight < cpus {
 		symbol := data[index]
-		vector := m.Mix()
-		go process(symbol, vector)
+		vector := m.Mix().Float32()
+		go process(uint64(index), vector)
 		m.Add(symbol)
 		flight++
 		index++
@@ -242,18 +242,16 @@ func Build() {
 	for index < len(data) {
 		result := <-done
 		flight--
-		vec := make([]float32, len(result.Vector))
-		for i, v := range result.Vector {
-			vec[i] = float32(v)
-		}
-		model[result.Index].Vectors = append(model[result.Index].Vectors, Vector{
-			Vector: vec,
-			Symbol: result.Symbol,
-		})
+		pool[item].Symbol = result.Symbol
+		copy(pool[item].Vector[:], result.Vector)
+		pool[item].Next = model[result.Index].Vectors
+		model[result.Index].Vectors = item
+		model[result.Index].Count++
+		item++
 
 		symbol := data[index]
-		vector := m.Mix()
-		go process(symbol, vector)
+		vector := m.Mix().Float32()
+		go process(uint64(index), vector)
 		m.Add(symbol)
 		flight++
 		index++
@@ -263,14 +261,13 @@ func Build() {
 	}
 	for i := 0; i < flight; i++ {
 		result := <-done
-		vec := make([]float32, len(result.Vector))
-		for i, v := range result.Vector {
-			vec[i] = float32(v)
-		}
-		model[result.Index].Vectors = append(model[result.Index].Vectors, Vector{
-			Vector: vec,
-			Symbol: result.Symbol,
-		})
+
+		pool[item].Symbol = result.Symbol
+		copy(pool[item].Vector[:], result.Vector)
+		pool[item].Next = model[result.Index].Vectors
+		model[result.Index].Vectors = item
+		model[result.Index].Count++
+		item++
 	}
 
 	db, err := os.Create("tdb.bin")
@@ -295,7 +292,7 @@ func Build() {
 				panic("4 bytes should be been written")
 			}
 		}
-		count := uint64(len(model[i].Vectors))
+		count := uint64(model[i].Count)
 		for i := range buffer64 {
 			buffer64[i] = byte((count >> (8 * i)) & 0xFF)
 		}
@@ -310,8 +307,9 @@ func Build() {
 
 	symbol := make([]byte, 1)
 	for i := range model {
-		for _, vector := range model[i].Vectors {
-			for _, v := range vector.Vector {
+		vector := model[i].Vectors
+		for vector != 0 {
+			for _, v := range pool[vector].Vector {
 				bits := math.Float32bits(v)
 				for i := range buffer32 {
 					buffer32[i] = byte((bits >> (8 * i)) & 0xFF)
@@ -324,7 +322,7 @@ func Build() {
 					panic("4 bytes should be been written")
 				}
 			}
-			symbol[0] = vector.Symbol
+			symbol[0] = data[pool[vector].Symbol]
 			n, err := db.Write(symbol)
 			if err != nil {
 				panic(err)
@@ -332,6 +330,18 @@ func Build() {
 			if n != len(symbol) {
 				panic("1 bytes should be been written")
 			}
+
+			for i := range buffer64 {
+				buffer64[i] = byte((pool[vector].Symbol >> (8 * i)) & 0xFF)
+			}
+			n, err = db.Write(buffer64)
+			if err != nil {
+				panic(err)
+			}
+			if n != len(buffer64) {
+				panic("8 bytes should be been written")
+			}
+			vector = pool[vector].Next
 		}
 	}
 }
@@ -394,18 +404,15 @@ func Soda() {
 		m.Add(v)
 	}
 
-	type Index struct {
-		Index int
-		Value float32
-	}
 	type Result struct {
+		Index  uint64
 		Symbol byte
 		Max    float32
 	}
 	done := make(chan Result, 8)
 	search := func(r, index int, data []float32) {
 		max, symbol := float32(0.0), byte(0)
-		buffer, vector := make([]byte, sizes[index]*EntryLineSize), make([]float32, 256)
+		buffer, vector, symbolIndex := make([]byte, sizes[index]*EntryLineSize), make([]float32, 256), uint64(0)
 		_, err := in[r].Seek(int64(Offset+sums[index]*EntryLineSize), io.SeekStart)
 		if err != nil {
 			panic(err)
@@ -427,10 +434,14 @@ func Soda() {
 			}
 			cs := CS(vector, data)
 			if cs > max {
-				max, symbol = cs, buffer[(j+1)*EntryLineSize-1]
+				max, symbolIndex, symbol = cs, 0, buffer[(j+1)*EntryLineSize-1-8]
+				for k := 0; k < 8; k++ {
+					symbolIndex |= uint64(buffer[(j+1)*EntryLineSize-8]) << (8 * k)
+				}
 			}
 		}
 		done <- Result{
+			Index:  symbolIndex,
 			Symbol: symbol,
 			Max:    max,
 		}
@@ -439,6 +450,10 @@ func Soda() {
 		result := make([]byte, 0, 8)
 		for i := 0; i < 128; i++ {
 			data := m.Mix().Sum().Float32()
+			type Index struct {
+				Index int
+				Value float32
+			}
 			indexes := make([]Index, len(model))
 			for i := range model {
 				if sizes[i] == 0 {
@@ -463,8 +478,8 @@ func Soda() {
 				return results[i].Max > results[j].Max
 			})
 
-			symbol := results[0].Symbol
-			fmt.Printf("%d %s\n", symbol, strconv.Quote(string(symbol)))
+			index, symbol := results[0].Index, results[0].Symbol
+			fmt.Printf("%d %d %s\n", index, symbol, strconv.Quote(string(symbol)))
 			m.Add(symbol)
 			result = append(result, symbol)
 		}

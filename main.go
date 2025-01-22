@@ -312,14 +312,16 @@ var (
 
 // Vector is a vector
 type Vector struct {
-	Vector []float32
-	Symbol byte
+	Vector [256]float32
+	Symbol uint64
+	Next   uint64
 }
 
 // Bucket is a bucket of vectors
 type Bucket struct {
 	Vector  [256]float32
-	Vectors []Vector
+	Vectors uint64
+	Count   int
 }
 
 func sqrt(a float32) float32 {
