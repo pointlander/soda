@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"time"
 
 	"github.com/pointlander/soda/vector"
 )
@@ -328,6 +329,14 @@ const (
 	StateTotal
 )
 
+// Handler is a http handler
+type Handler struct {
+}
+
+func (h *Handler) ServerHTTP(response *http.ResponseWriter, request *http.Request) {
+
+}
+
 func main() {
 	flag.Parse()
 
@@ -335,7 +344,17 @@ func main() {
 		Build()
 		return
 	} else if *FlagServer {
-		err := http.ListenAndServe(":8080", http.FileServer(http.Dir("assets")))
+		assetsHandler := http.FileServer(http.Dir("assets"))
+		mux := http.NewServeMux()
+		mux.Handle("/", assetsHandler)
+		s := &http.Server{
+			Addr:           ":8080",
+			Handler:        mux,
+			ReadTimeout:    10 * time.Second,
+			WriteTimeout:   10 * time.Second,
+			MaxHeaderBytes: 1 << 20,
+		}
+		err := s.ListenAndServe()
 		if err != nil {
 			fmt.Println("Failed to start server", err)
 			return
