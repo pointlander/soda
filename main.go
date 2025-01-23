@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"net/http"
 
 	"github.com/pointlander/soda/vector"
 )
@@ -279,6 +280,8 @@ var (
 	FlagQuery = flag.String("query", "What is the meaning of life?", "query flag")
 	// FlagBuild build the database
 	FlagBuild = flag.Bool("build", false, "build the database")
+	// FlagServer is server mode
+	FlagServer = flag.Bool("server", false, "server mode")
 )
 
 // Vector is a vector
@@ -330,6 +333,13 @@ func main() {
 
 	if *FlagBuild {
 		Build()
+		return
+	} else if *FlagServer {
+		err := http.ListenAndServe(":8080", http.FileServer(http.Dir("assets")))
+		if err != nil {
+			fmt.Println("Failed to start server", err)
+			return
+		}
 		return
 	}
 
