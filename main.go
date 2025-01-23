@@ -8,6 +8,7 @@ import (
 	"embed"
 	"flag"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"time"
@@ -331,10 +332,23 @@ const (
 
 // Handler is a http handler
 type Handler struct {
+	Header Header
+	Sizes  []uint64
+	Sums   []uint64
 }
 
-func (h *Handler) ServerHTTP(response *http.ResponseWriter, request *http.Request) {
-
+func (h Handler) ServeHTTP(response http.ResponseWriter, request *http.Request) {
+	query, err := io.ReadAll(request.Body)
+	if err != nil {
+		panic(err)
+	}
+	request.Body.Close()
+	output := h.Header.Soda(h.Sizes, h.Sums, query)
+	str := query
+	for i := range output {
+		str = append(str, output[i].Symbol)
+	}
+	response.Write(str)
 }
 
 func main() {
@@ -344,8 +358,15 @@ func main() {
 		Build()
 		return
 	} else if *FlagServer {
+		header, sizes, sums := LoadHeader()
+		infer := Handler{
+			Header: header,
+			Sizes:  sizes,
+			Sums:   sums,
+		}
 		assetsHandler := http.FileServer(http.Dir("assets"))
 		mux := http.NewServeMux()
+		mux.Handle("/infer", infer)
 		mux.Handle("/", assetsHandler)
 		s := &http.Server{
 			Addr:           ":8080",

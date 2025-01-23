@@ -1,6 +1,30 @@
 <html>
  <head><title>Soda</title></head>
  <body>
-  Hello World!
+  <form id="form">
+   <textarea id="query" rows="40" cols="80"></textarea>
+   <pre id="text"></pre><br/>
+   <input type="submit"/>
+  </form>
+  <script type="text/javascript">
+   function submit(event) {
+    event.preventDefault();
+    query = document.getElementById('query').value;
+    fetch("/infer",
+    {
+        method: "POST",
+        body: query
+    })
+    .then(function(response){ 
+     return response.text(); 
+    })
+    .then(function(data){ 
+     document.getElementById('text').innerHTML = data;
+    });
+    return false;
+   }
+   var form = document.getElementById("form");
+   form.addEventListener('submit', submit);
+  </script>
  </body>
 </html>
