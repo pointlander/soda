@@ -36,6 +36,38 @@ const (
 	Offset = ModelSize * 1024 * HeaderLineSize
 )
 
+const (
+	// B1 exponential decay of the rate for the first moment estimates
+	B1 = 0.8
+	// B2 exponential decay rate for the second-moment estimates
+	B2 = 0.89
+	// Eta is the learning rate
+	Eta = 1.0e-3
+)
+
+const (
+	// StateM is the state for the mean
+	StateM = iota
+	// StateV is the state for the variance
+	StateV
+	// StateTotal is the total number of states
+	StateTotal
+)
+
+// Vector is a vector
+type Vector struct {
+	Vector [256]float32
+	Symbol uint64
+	Next   uint64
+}
+
+// Bucket is a bucket of vectors
+type Bucket struct {
+	Vector  [256]float32
+	Vectors uint64
+	Count   int
+}
+
 // Output is the output of the model
 type Output struct {
 	Index  uint64 `json:"index"`
