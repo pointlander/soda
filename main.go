@@ -5,6 +5,7 @@
 package main
 
 import (
+	"compress/bzip2"
 	"embed"
 	"flag"
 	"fmt"
@@ -277,6 +278,9 @@ func (m Mixer) Mix(output *[256]float32) {
 //go:embed books/*
 var Data embed.FS
 
+//go:embed assets/index.html
+var Index embed.FS
+
 var (
 	// FlagQuery is the query string
 	FlagQuery = flag.String("query", "What is the meaning of life?", "query flag")
@@ -330,6 +334,41 @@ const (
 	StateTotal
 )
 
+// Root is the root file
+type Root struct{}
+
+// ServeHTTP implements model inference access
+func (r Root) ServeHTTP(response http.ResponseWriter, request *http.Request) {
+	file, err := Index.Open("assets/index.html")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+	input, err := io.ReadAll(file)
+	if err != nil {
+		panic(err)
+	}
+	response.Write(input)
+}
+
+// Bibiel is the bible file
+type Bible struct{}
+
+// ServeHTTP implements model inference access
+func (b Bible) ServeHTTP(response http.ResponseWriter, request *http.Request) {
+	file, err := Data.Open("books/10.txt.utf-8.bz2")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+	reader := bzip2.NewReader(file)
+	input, err := io.ReadAll(reader)
+	if err != nil {
+		panic(err)
+	}
+	response.Write(input)
+}
+
 // Handler is a http handler
 type Handler struct {
 	Header Header
@@ -337,6 +376,7 @@ type Handler struct {
 	Sums   []uint64
 }
 
+// ServeHTTP implements model inference access
 func (h Handler) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	query, err := io.ReadAll(request.Body)
 	if err != nil {
@@ -364,10 +404,11 @@ func main() {
 			Sizes:  sizes,
 			Sums:   sums,
 		}
-		assetsHandler := http.FileServer(http.Dir("assets"))
 		mux := http.NewServeMux()
 		mux.Handle("/infer", infer)
-		mux.Handle("/", assetsHandler)
+		mux.Handle("/bible", Bible{})
+		mux.Handle("/index.html", Root{})
+		mux.Handle("/", Root{})
 		s := &http.Server{
 			Addr:           ":8080",
 			Handler:        mux,
