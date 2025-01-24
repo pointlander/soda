@@ -23,6 +23,11 @@
    </tr>
   </table>
   <script type="text/javascript">
+   function bibleclick(c) {
+     var text = document.getElementById('bible');
+     text.focus();
+     text.setSelectionRange(c, c+1);
+   }
    fetch("/bible",
    {
     method: "GET"
@@ -32,7 +37,7 @@
    })
    .then(function(data){ 
     document.getElementById('bible').value = data;
-   });    
+   });
    function submit(event) {
     event.preventDefault();
     query = document.getElementById('query').value;
