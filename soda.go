@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/pointlander/gradient/tf32"
 
@@ -321,6 +322,21 @@ func Build() {
 		panic(err)
 	}
 	data := input
+	counts := make([]uint64, len(data))
+	{
+		str := string(data)
+		runes := []rune(str)
+		index, sum := 0, uint64(0)
+		for _, r := range runes {
+			size := utf8.RuneLen(r)
+			for i := 0; i < size; i++ {
+				counts[index] = sum
+				index++
+			}
+			sum += uint64(size)
+		}
+	}
+
 	model := NewHeader(data)
 	pool, item := make([]Vector, len(data)+1), uint64(1)
 
@@ -329,7 +345,7 @@ func Build() {
 	for index < len(data) && flight < cpus {
 		symbol := data[index]
 		m.Mix(&pool[item].Vector)
-		pool[item].Symbol = uint64(index)
+		pool[item].Symbol = counts[index]
 		go process(done, model, pool, item)
 		item++
 		m.Add(symbol)
@@ -345,7 +361,7 @@ func Build() {
 
 		symbol := data[index]
 		m.Mix(&pool[item].Vector)
-		pool[item].Symbol = uint64(index)
+		pool[item].Symbol = counts[index]
 		go process(done, model, pool, item)
 		item++
 		m.Add(symbol)
