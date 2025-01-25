@@ -44,6 +44,7 @@ func (r Root) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		panic(err)
 	}
+	response.Header().Set("Content-Type", "text/html; charset=utf-8")
 	response.Write(input)
 }
 
@@ -62,6 +63,7 @@ func (b Bible) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		panic(err)
 	}
+	response.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	response.Write(input)
 }
 
@@ -84,6 +86,7 @@ func (h Handler) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	if err != nil {
 		panic(err)
 	}
+	response.Header().Set("Content-Type", "application/json; charset=utf-8")
 	response.Write(data)
 }
 
