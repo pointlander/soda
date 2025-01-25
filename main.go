@@ -7,6 +7,7 @@ package main
 import (
 	"compress/bzip2"
 	"embed"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -79,14 +80,11 @@ func (h Handler) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	}
 	request.Body.Close()
 	output := h.Header.Soda(h.Sizes, h.Sums, query)
-	str := query
-	for i := range output {
-		str = append(str, []byte(fmt.Sprintf("<span onclick=\"bibleclick(%d)\" style=\"padding: 0; margin: 0;\">",
-			output[i].Index))...)
-		str = append(str, output[i].Symbol)
-		str = append(str, []byte("</span>")...)
+	data, err := json.Marshal(output)
+	if err != nil {
+		panic(err)
 	}
-	response.Write(str)
+	response.Write(data)
 }
 
 func main() {

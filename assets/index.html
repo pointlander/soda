@@ -64,8 +64,15 @@
     .then(function(response){ 
      return response.text(); 
     })
-    .then(function(data){ 
-     document.getElementById('text').innerHTML = data;
+    .then(function(data){
+     const j = JSON.parse(data);
+     var h = "";
+     for (const s of j) {
+      h += "<span onclick=\"bibleclick("+s.index+")\" style=\"padding: 0; margin: 0;\">"
+      h += String.fromCharCode(s.symbol)
+      h += "</span>"
+     }
+     document.getElementById('text').innerHTML = h;
     });
     return false;
    }
