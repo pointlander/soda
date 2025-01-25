@@ -27,13 +27,21 @@
    function isDisplayable(char) {
     return /[\x20-\x7E]/.test(char);
    }
+   function isPrintableSurrogatePair(codePoint) {
+     return codePoint >= 0x20 && codePoint <= 0x10FFFF && // Unicode printable range
+            !isControlCharacter(codePoint); // Exclude control characters
+   }
+   function isControlCharacter(codePoint) {
+     return (codePoint >= 0x00 && codePoint <= 0x1F) ||
+            (codePoint >= 0x7F && codePoint <= 0x9F);
+   }
    function bibleclick(c) {
      var text = document.getElementById('bible');
      var index = 0
      const value = text.value;
      var i = 0;
      for (const char of value) {
-      if (isDisplayable(char)) {
+      if (isPrintableSurrogatePair(char.codePointAt(0))) {
        index++;
       }
       i++;

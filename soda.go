@@ -326,15 +326,15 @@ func Build() {
 	{
 		str := string(data)
 		runes := []rune(str)
-		index, sum := 0, uint64(0)
-		for _, r := range runes {
+		index := 0
+		for j, r := range runes {
 			size := utf8.RuneLen(r)
 			for i := 0; i < size; i++ {
-				counts[index] = sum
+				counts[index] = uint64(j)
 				index++
 			}
-			sum += uint64(size)
 		}
+		fmt.Println(len(data), len(runes))
 	}
 
 	model := NewHeader(data)
@@ -345,7 +345,7 @@ func Build() {
 	for index < len(data) && flight < cpus {
 		symbol := data[index]
 		m.Mix(&pool[item].Vector)
-		pool[item].Symbol = counts[index]
+		pool[item].Symbol = uint64(index)
 		go process(done, model, pool, item)
 		item++
 		m.Add(symbol)
@@ -361,7 +361,7 @@ func Build() {
 
 		symbol := data[index]
 		m.Mix(&pool[item].Vector)
-		pool[item].Symbol = counts[index]
+		pool[item].Symbol = uint64(index)
 		go process(done, model, pool, item)
 		item++
 		m.Add(symbol)
@@ -443,7 +443,7 @@ func Build() {
 			}
 
 			for i := range buffer64 {
-				buffer64[i] = byte((pool[vector].Symbol >> (8 * i)) & 0xFF)
+				buffer64[i] = byte((counts[pool[vector].Symbol] >> (8 * i)) & 0xFF)
 			}
 			n, err = db.Write(buffer64)
 			if err != nil {
