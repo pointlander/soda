@@ -23,10 +23,25 @@
    </tr>
   </table>
   <script type="text/javascript">
+   function isDisplayable(char) {
+    return /[\x20-\x7E\t ]/.test(char);
+   }
    function bibleclick(c) {
      var text = document.getElementById('bible');
+     var index = 0
+     const value = text.value;
+     var i = 0;
+     for (const char of value) {
+      if (isDisplayable(char)) {
+       index++;
+      }
+      i++;
+      if (i > c) {
+       break;
+      }
+     }
      text.focus();
-     text.setSelectionRange(c, c+1);
+     text.setSelectionRange(index, index+1);
    }
    fetch("/bible",
    {
