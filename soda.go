@@ -334,7 +334,6 @@ func Build() {
 				index++
 			}
 		}
-		fmt.Println(len(data), len(runes))
 	}
 
 	model := NewHeader(data)
