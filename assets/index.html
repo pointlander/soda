@@ -19,7 +19,7 @@
      </form>
     </td>
     <td>
-     <textarea id="bible" rows="40" cols="80"></textarea>
+     <pre id="bible"></pre>
     </td>
    </tr>
   </table>
@@ -35,22 +35,37 @@
      return (codePoint >= 0x00 && codePoint <= 0x1F) ||
             (codePoint >= 0x7F && codePoint <= 0x9F);
    }
+   function selectTextRange(element, start, end) {
+     const range = document.createRange();
+     range.setStart(element.firstChild, start);
+     range.setEnd(element.firstChild, end);
+     const selection = window.getSelection();
+     selection.removeAllRanges();
+     selection.addRange(range);
+   }
    function bibleclick(c) {
      var text = document.getElementById('bible');
      var index = 0
-     const value = text.value;
+     const value = text.innerHTML;
      var i = 0;
+     var last;
      for (const char of value) {
-      if (isPrintableSurrogatePair(char.codePointAt(0))) {
-       index++;
-      }
-      i++;
-      if (i > c) {
+      if (!(i < c)) {
        break;
       }
+      //if (isPrintableSurrogatePair(char.codePointAt(0))) {
+      if (isDisplayable(char)) {
+       index++;
+       last = char;
+      }
+      i++;
      }
+     console.log(last.codePointAt(0));
+     console.log(last);
+     console.log(c);
      text.focus();
-     text.setSelectionRange(index, index+1);
+     index--;
+     selectTextRange(text, index, index+1); 
    }
    fetch("/bible",
    {
@@ -60,7 +75,7 @@
     return response.text(); 
    })
    .then(function(data){ 
-    document.getElementById('bible').value = data;
+    document.getElementById('bible').innerHTML = data;
    });
    function submit(event) {
     event.preventDefault();
