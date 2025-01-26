@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
  <head>
   <meta charset="UTF-8">
@@ -19,7 +20,7 @@
      </form>
     </td>
     <td>
-     <pre id="bible"></pre>
+     <textarea id="bible" rows="40" cols="80"></textarea>
     </td>
    </tr>
   </table>
@@ -43,15 +44,20 @@
      selection.removeAllRanges();
      selection.addRange(range);
    }
+   var counts = [];
    function bibleclick(c) {
+     var newlines = 0;
      var text = document.getElementById('bible');
      var index = 0
-     const value = text.innerHTML;
+     const value = text.value;
      var i = 0;
      var last;
      for (const char of value) {
-      if (!(i < c)) {
+      if (!(i < (c - newlines))) {
        break;
+      }
+      if (char == '\n') {
+      	newlines++;
       }
       //if (isPrintableSurrogatePair(char.codePointAt(0))) {
       if (isDisplayable(char)) {
@@ -65,7 +71,10 @@
      console.log(c);
      text.focus();
      index--;
-     selectTextRange(text, index, index+1); 
+     c -= newlines;
+     c--;
+     //selectTextRange(text, c, c+1);
+     text.setSelectionRange(c, c+1); 
    }
    fetch("/bible",
    {
@@ -75,7 +84,7 @@
     return response.text(); 
    })
    .then(function(data){ 
-    document.getElementById('bible').innerHTML = data;
+    document.getElementById('bible').value = data;
    });
    function submit(event) {
     event.preventDefault();
