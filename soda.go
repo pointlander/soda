@@ -522,7 +522,7 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 	}
 
 	result := make([]Output, 0, 8)
-	for i := 0; i < 128; i++ {
+	for i := 0; i < *FlagCount; i++ {
 		var data [256]float32
 		m.Mix(&data)
 		type Index struct {

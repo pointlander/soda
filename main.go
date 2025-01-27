@@ -24,6 +24,8 @@ var Index embed.FS
 var (
 	// FlagQuery is the query string
 	FlagQuery = flag.String("query", "What is the meaning of life?", "query flag")
+	// FlagCount count is the number of symbols to generate
+	FlagCount = flag.Int("count", 128, "number of symbols to generate")
 	// FlagBuild build the database
 	FlagBuild = flag.Bool("build", false, "build the database")
 	// FlagServer is server mode
