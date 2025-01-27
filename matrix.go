@@ -176,6 +176,32 @@ func SelfAttention(input Matrix, output *[256]float32) {
 	}
 }
 
+// SelfEntropy computes the self entropy of Q, K, V
+func SelfEntropy(input Matrix, output []float32) {
+	values := make([]float64, input.Rows)
+	V := input.T()
+	sums := make([]float64, V.Rows)
+	for i := 0; i < input.Rows; i++ {
+		K := input.Data[i*input.Cols : (i+1)*input.Cols]
+		for j := 0; j < input.Rows; j++ {
+			Q := input.Data[j*input.Cols : (j+1)*input.Cols]
+			values[j] = dot(K, Q)
+		}
+		softmax(values)
+
+		for j := 0; j < V.Rows; j++ {
+			V := V.Data[j*V.Cols : (j+1)*V.Cols]
+			sums[j] = dot(values, V)
+		}
+		softmax(sums)
+		entropy := 0.0
+		for _, v := range sums {
+			entropy += v * math.Log(v)
+		}
+		output[i] = -float32(entropy)
+	}
+}
+
 func sqrt(a float32) float32 {
 	return float32(math.Sqrt(float64(a)))
 }
