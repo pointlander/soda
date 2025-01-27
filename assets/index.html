@@ -69,7 +69,7 @@
      var h = "";
      for (const s of j) {
       h += "<span onclick=\"bibleclick("+s.index+")\" style=\"padding: 0; margin: 0;\">"
-      h += String.fromCharCode(s.symbol)
+      h += s.symbol
       h += "</span>"
      }
      document.getElementById('text').innerHTML = h;

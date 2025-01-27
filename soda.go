@@ -72,7 +72,8 @@ type Bucket struct {
 // Output is the output of the model
 type Output struct {
 	Index  uint64 `json:"index"`
-	Symbol byte   `json:"symbol"`
+	Symbol uint8  `json:"-"`
+	S      string `json:"symbol"`
 }
 
 // Result is an index search result
@@ -522,6 +523,7 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 	}
 
 	result := make([]Output, 0, 8)
+	var symbols []byte
 	for i := 0; i < *FlagCount; i++ {
 		var data [256]float32
 		m.Mix(&data)
@@ -554,7 +556,12 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 		})
 
 		m.Add(results[0].Symbol)
-		result = append(result, results[0].Output)
+		symbols = append(symbols, results[0].Symbol)
+		if utf8.FullRune(symbols) {
+			results[0].S = string(symbols)
+			symbols = []byte{}
+			result = append(result, results[0].Output)
+		}
 	}
 
 	return result
