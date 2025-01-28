@@ -128,6 +128,21 @@ func (m Matrix) T() Matrix {
 	return o
 }
 
+// AddRow adds a row to a matrix
+func (m Matrix) AddRow(row []float64) Matrix {
+	if len(row) != m.Cols {
+		panic("incorrect number of columns")
+	}
+	o := Matrix{
+		Cols: m.Cols,
+		Rows: m.Rows + 1,
+		Data: make([]float64, 0, m.Cols*m.Rows),
+	}
+	copy(o.Data, m.Data)
+	o.Data = append(o.Data, row...)
+	return o
+}
+
 func dot(x, y []float64) (z float64) {
 	for i := range x {
 		z += x[i] * y[i]
