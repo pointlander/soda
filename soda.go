@@ -473,17 +473,27 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 		}
 	}()
 
+	context := NewMatrix(256, 0)
 	m := NewMixer()
 	for _, v := range query {
 		m.Add(v)
+		var vector [256]float32
+		m.Mix(&vector)
+		cp := make([]float64, len(vector))
+		for i := range cp {
+			cp[i] = float64(vector[i])
+		}
+		context = context.AddRow(cp)
 	}
 
 	type Result struct {
 		Output
-		Max float32
+		Max     float32
+		Context Matrix
+		Entropy []float32
 	}
 	done := make(chan Result, 8)
-	search := func(r, index int, data []float32) {
+	search := func(r, index int, data []float32, context Matrix) {
 		max, symbol := float32(0.0), byte(0)
 		buffer, vector, symbolIndex := make([]byte, sizes[index]*EntryLineSize), make([]float32, 256), uint64(0)
 		_, err := in[r].Seek(int64(Offset+sums[index]*EntryLineSize), io.SeekStart)
@@ -513,12 +523,21 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 				}
 			}
 		}
+		cp := make([]float64, len(vector))
+		for i := range vector {
+			cp[i] = float64(vector[i])
+		}
+		context = context.AddRow(cp)
+		entropy := make([]float32, context.Rows)
+		SelfEntropy(context, entropy)
 		done <- Result{
 			Output: Output{
 				Index:  symbolIndex,
 				Symbol: symbol,
 			},
-			Max: max,
+			Max:     max,
+			Context: context,
+			Entropy: entropy,
 		}
 	}
 
@@ -545,17 +564,19 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 
 		var results []Result
 		for j := 0; j < Queries; j++ {
-			go search(j, indexes[j].Index, data[:])
+			go search(j, indexes[j].Index, data[:], context)
 		}
 		for j := 0; j < Queries; j++ {
 			result := <-done
+
 			results = append(results, result)
 		}
 		sort.Slice(results, func(i, j int) bool {
-			return results[i].Max > results[j].Max
+			return results[i].Entropy[0] < results[j].Entropy[0]
 		})
 
 		m.Add(results[0].Symbol)
+		context = results[0].Context
 		symbols = append(symbols, results[0].Symbol)
 		if utf8.FullRune(symbols) {
 			results[0].S = string(symbols)
