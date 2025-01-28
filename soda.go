@@ -27,8 +27,6 @@ import (
 const (
 	// ModelSize is the model size
 	ModelSize = 8
-	// Queries is the number of queries
-	Queries = 4
 	// HeaderLineSize is the size of a header line
 	HeaderLineSize = 4*256 + 1*8
 	// EntryLineSize is the size of an entry line
@@ -459,7 +457,8 @@ func Build() {
 
 // Soda is the soda model
 func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
-	in := make([]*os.File, Queries)
+	cpus := runtime.NumCPU()
+	in := make([]*os.File, cpus)
 	for i := range in {
 		var err error
 		in[i], err = os.Open("db.bin")
@@ -563,10 +562,10 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 		})
 
 		var results []Result
-		for j := 0; j < Queries; j++ {
+		for j := 0; j < cpus; j++ {
 			go search(j, indexes[j].Index, data[:], context)
 		}
-		for j := 0; j < Queries; j++ {
+		for j := 0; j < cpus; j++ {
 			result := <-done
 
 			results = append(results, result)
