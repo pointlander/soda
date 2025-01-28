@@ -27,8 +27,6 @@ import (
 const (
 	// ModelSize is the model size
 	ModelSize = 8
-	// Queries is the number of queries
-	Queries = 4
 	// HeaderLineSize is the size of a header line
 	HeaderLineSize = 4*256 + 1*8
 	// EntryLineSize is the size of an entry line
@@ -459,7 +457,8 @@ func Build() {
 
 // Soda is the soda model
 func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
-	in := make([]*os.File, Queries)
+	cpus := runtime.NumCPU()
+	in := make([]*os.File, cpus)
 	for i := range in {
 		var err error
 		in[i], err = os.Open("db.bin")
@@ -473,17 +472,27 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 		}
 	}()
 
+	context := NewMatrix(256, 0)
 	m := NewMixer()
 	for _, v := range query {
 		m.Add(v)
+		var vector [256]float32
+		m.Mix(&vector)
+		cp := make([]float64, len(vector))
+		for i := range cp {
+			cp[i] = float64(vector[i])
+		}
+		context = context.AddRow(cp)
 	}
 
 	type Result struct {
 		Output
-		Max float32
+		Max     float32
+		Context Matrix
+		Entropy []float32
 	}
 	done := make(chan Result, 8)
-	search := func(r, index int, data []float32) {
+	search := func(r, index int, data []float32, context Matrix) {
 		max, symbol := float32(0.0), byte(0)
 		buffer, vector, symbolIndex := make([]byte, sizes[index]*EntryLineSize), make([]float32, 256), uint64(0)
 		_, err := in[r].Seek(int64(Offset+sums[index]*EntryLineSize), io.SeekStart)
@@ -513,12 +522,21 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 				}
 			}
 		}
+		cp := make([]float64, len(vector))
+		for i := range vector {
+			cp[i] = float64(vector[i])
+		}
+		context = context.AddRow(cp)
+		entropy := make([]float32, context.Rows)
+		SelfEntropy(context, entropy)
 		done <- Result{
 			Output: Output{
 				Index:  symbolIndex,
 				Symbol: symbol,
 			},
-			Max: max,
+			Max:     max,
+			Context: context,
+			Entropy: entropy,
 		}
 	}
 
@@ -544,18 +562,20 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 		})
 
 		var results []Result
-		for j := 0; j < Queries; j++ {
-			go search(j, indexes[j].Index, data[:])
+		for j := 0; j < cpus; j++ {
+			go search(j, indexes[j].Index, data[:], context)
 		}
-		for j := 0; j < Queries; j++ {
+		for j := 0; j < cpus; j++ {
 			result := <-done
+
 			results = append(results, result)
 		}
 		sort.Slice(results, func(i, j int) bool {
-			return results[i].Max > results[j].Max
+			return results[i].Entropy[len(results[i].Entropy)-1] < results[j].Entropy[len(results[j].Entropy)-1]
 		})
 
 		m.Add(results[0].Symbol)
+		context = results[0].Context
 		symbols = append(symbols, results[0].Symbol)
 		if utf8.FullRune(symbols) {
 			results[0].S = string(symbols)

@@ -136,7 +136,7 @@ func (m Matrix) AddRow(row []float64) Matrix {
 	o := Matrix{
 		Cols: m.Cols,
 		Rows: m.Rows + 1,
-		Data: make([]float64, 0, m.Cols*m.Rows),
+		Data: make([]float64, m.Cols*m.Rows),
 	}
 	copy(o.Data, m.Data)
 	o.Data = append(o.Data, row...)
