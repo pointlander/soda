@@ -579,7 +579,8 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 			results = append(results, result...)
 		}
 		sort.Slice(results, func(i, j int) bool {
-			return results[i].Entropy[len(results[i].Entropy)-1] > results[j].Entropy[len(results[j].Entropy)-1]
+			return results[i].Entropy[len(results[i].Entropy)-1]/results[i].Max <
+				results[j].Entropy[len(results[j].Entropy)-1]/results[j].Max
 		})
 
 		m.Add(results[0].Symbol)
