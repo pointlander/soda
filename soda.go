@@ -491,10 +491,9 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 		Context Matrix
 		Entropy []float32
 	}
-	done := make(chan Result, 8)
+	done := make(chan []Result, 8)
 	search := func(r, index int, data []float32, context Matrix) {
-		max, symbol := float32(0.0), byte(0)
-		buffer, vector, symbolIndex := make([]byte, sizes[index]*EntryLineSize), make([]float32, 256), uint64(0)
+		buffer, vector := make([]byte, sizes[index]*EntryLineSize), make([]float32, 256)
 		_, err := in[r].Seek(int64(Offset+sums[index]*EntryLineSize), io.SeekStart)
 		if err != nil {
 			panic(err)
@@ -506,6 +505,7 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 		if n != len(buffer) {
 			panic(fmt.Sprintf("%d bytes should have been read", len(buffer)))
 		}
+		candidates := make([]Result, sizes[index])
 		for j := 0; j < int(sizes[index]); j++ {
 			for k := range vector {
 				var bits uint32
@@ -515,29 +515,38 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 				vector[k] = math.Float32frombits(bits)
 			}
 			cs := CS(vector, data)
-			if cs > max {
-				max, symbolIndex, symbol = cs, 0, buffer[(j+1)*EntryLineSize-1-8]
-				for k := 0; k < 8; k++ {
-					symbolIndex |= uint64(buffer[(j+1)*EntryLineSize-8+k]) << (8 * k)
-				}
+			max, symbolIndex, symbol := cs, uint64(0), buffer[(j+1)*EntryLineSize-1-8]
+			for k := 0; k < 8; k++ {
+				symbolIndex |= uint64(buffer[(j+1)*EntryLineSize-8+k]) << (8 * k)
+			}
+			candidates[j] = Result{
+				Output: Output{
+					Index:  symbolIndex,
+					Symbol: symbol,
+				},
+				Max: max,
 			}
 		}
-		cp := make([]float64, len(vector))
-		for i := range vector {
-			cp[i] = float64(vector[i])
+		sort.Slice(candidates, func(i, j int) bool {
+			return candidates[i].Max > candidates[j].Max
+		})
+		size := uint64(4)
+		if sizes[index] < size {
+			size = sizes[index]
 		}
-		context = context.AddRow(cp)
-		entropy := make([]float32, context.Rows)
-		SelfEntropy(context, entropy)
-		done <- Result{
-			Output: Output{
-				Index:  symbolIndex,
-				Symbol: symbol,
-			},
-			Max:     max,
-			Context: context,
-			Entropy: entropy,
+		results := make([]Result, size)
+		copy(results, candidates[:size])
+		for j := range results {
+			cp := make([]float64, len(vector))
+			for i := range vector {
+				cp[i] = float64(vector[i])
+			}
+			results[j].Context = context.AddRow(cp)
+			entropy := make([]float32, results[j].Context.Rows)
+			SelfEntropy(results[j].Context, entropy)
+			results[j].Entropy = entropy
 		}
+		done <- results
 	}
 
 	result := make([]Output, 0, 8)
@@ -567,11 +576,10 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 		}
 		for j := 0; j < cpus; j++ {
 			result := <-done
-
-			results = append(results, result)
+			results = append(results, result...)
 		}
 		sort.Slice(results, func(i, j int) bool {
-			return results[i].Entropy[len(results[i].Entropy)-1] < results[j].Entropy[len(results[j].Entropy)-1]
+			return results[i].Entropy[len(results[i].Entropy)-1] > results[j].Entropy[len(results[j].Entropy)-1]
 		})
 
 		m.Add(results[0].Symbol)
