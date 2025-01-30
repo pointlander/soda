@@ -11,7 +11,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"time"
 )
@@ -97,20 +96,6 @@ func (h Handler) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 
 // Brute is brute force mode
 func Brute() {
-	query := []byte("Go")
-	context := NewMatrix(256, 0)
-	m := NewMixer()
-	for _, v := range query {
-		m.Add(v)
-		var vector [256]float32
-		m.Mix(&vector)
-		cp := make([]float64, len(vector))
-		for i := range cp {
-			cp[i] = float64(vector[i])
-		}
-		context = context.AddRow(cp)
-	}
-
 	file, err := Data.Open("books/10.txt.utf-8.bz2")
 	if err != nil {
 		panic(err)
@@ -122,22 +107,34 @@ func Brute() {
 		panic(err)
 	}
 
-	index, symbol, min := 0, byte(0), float32(math.MaxFloat32)
-	var vector [256]float32
-	cp := make([]float64, len(vector))
-	entropy := make([]float32, context.Rows+1)
-	end := len(entropy) - 1
+	type Vector struct {
+		Vector [Size]float32
+		Symbol byte
+	}
+	vectors := make([]Vector, len(input))
+	m := NewMixer()
+	m.Add(0)
+	vector := make([]float32, Size)
 	for i, v := range input {
+		m.MixEntropy(vector)
+		copy(vectors[i].Vector[:], vector)
+		vectors[i].Symbol = v
 		m.Add(v)
-		m.Mix(&vector)
-		for i := range vector {
-			cp[i] = float64(vector[i])
-		}
-		context := context.AddRow(cp)
-		SelfEntropy(context, entropy)
-		if e := entropy[end]; e < min {
-			min, index, symbol = e, i, v
-			fmt.Printf("%f %d %d %c\n", min, index, symbol, symbol)
+	}
+
+	query := []byte("Go")
+	m = NewMixer()
+	for _, v := range query {
+		m.Add(v)
+	}
+
+	m.MixEntropy(vector)
+	index, max := 0, float32(0.0)
+	for i := range vectors {
+		cs := CS(vector, vectors[i].Vector[:])
+		if cs > max {
+			max, index = cs, i
+			fmt.Printf("%d %f %d %c\n", index, max, vectors[index].Symbol, vectors[index].Symbol)
 		}
 	}
 }

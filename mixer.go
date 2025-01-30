@@ -99,3 +99,18 @@ func (m Mixer) Mix(output *[256]float32) {
 	}
 	SelfAttention(x, output)
 }
+
+// MixEntropy mixes the histograms and outputs entropy
+func (m Mixer) MixEntropy(output []float32) {
+	x := NewMatrix(256, Size)
+	for i := range m.Histograms {
+		sum := 0.0
+		for _, v := range m.Histograms[i].Vector {
+			sum += float64(v)
+		}
+		for _, v := range m.Histograms[i].Vector {
+			x.Data = append(x.Data, float64(v)/sum)
+		}
+	}
+	SelfEntropy(x, output)
+}
