@@ -472,7 +472,6 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 		}
 	}()
 
-	context := NewMatrix(256, 0)
 	m := NewMixer()
 	for _, v := range query {
 		m.Add(v)
@@ -482,17 +481,14 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 		for i := range cp {
 			cp[i] = float64(vector[i])
 		}
-		context = context.AddRow(cp)
 	}
 
 	type Result struct {
 		Output
-		Max     float32
-		Context Matrix
-		Entropy []float32
+		CS float32
 	}
 	done := make(chan []Result, 8)
-	search := func(r, index int, data []float32, context Matrix) {
+	search := func(r, index int, data []float32) {
 		buffer, vector := make([]byte, sizes[index]*EntryLineSize), make([]float32, 256)
 		_, err := in[r].Seek(int64(Offset+sums[index]*EntryLineSize), io.SeekStart)
 		if err != nil {
@@ -524,11 +520,11 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 					Index:  symbolIndex,
 					Symbol: symbol,
 				},
-				Max: max,
+				CS: max,
 			}
 		}
 		sort.Slice(candidates, func(i, j int) bool {
-			return candidates[i].Max > candidates[j].Max
+			return candidates[i].CS > candidates[j].CS
 		})
 		size := uint64(4)
 		if sizes[index] < size {
@@ -536,16 +532,6 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 		}
 		results := make([]Result, size)
 		copy(results, candidates[:size])
-		for j := range results {
-			cp := make([]float64, len(vector))
-			for i := range vector {
-				cp[i] = float64(vector[i])
-			}
-			results[j].Context = context.AddRow(cp)
-			entropy := make([]float32, results[j].Context.Rows)
-			SelfEntropy(results[j].Context, entropy)
-			results[j].Entropy = entropy
-		}
 		done <- results
 	}
 
@@ -572,19 +558,17 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 
 		var results []Result
 		for j := 0; j < cpus; j++ {
-			go search(j, indexes[j].Index, data[:], context)
+			go search(j, indexes[j].Index, data[:])
 		}
 		for j := 0; j < cpus; j++ {
 			result := <-done
 			results = append(results, result...)
 		}
 		sort.Slice(results, func(i, j int) bool {
-			return results[i].Entropy[len(results[i].Entropy)-1]/results[i].Max <
-				results[j].Entropy[len(results[j].Entropy)-1]/results[j].Max
+			return results[i].CS > results[j].CS
 		})
 
 		m.Add(results[0].Symbol)
-		context = results[0].Context
 		symbols = append(symbols, results[0].Symbol)
 		if utf8.FullRune(symbols) {
 			results[0].S = string(symbols)
