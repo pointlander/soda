@@ -18,6 +18,7 @@ import (
 
 	"github.com/pointlander/gradient/tf32"
 
+	"github.com/alixaxel/pagerank"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
@@ -472,11 +473,14 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 		}
 	}()
 
+	vectors := []*[256]float32{}
 	m := NewMixer()
 	for _, v := range query {
 		m.Add(v)
 		var vector [256]float32
-		m.Mix(&vector)
+		vec := &vector
+		vectors = append(vectors, vec)
+		m.Mix(vec)
 		cp := make([]float64, len(vector))
 		for i := range cp {
 			cp[i] = float64(vector[i])
@@ -485,11 +489,12 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 
 	type Result struct {
 		Output
-		CS float32
+		CS     float32
+		Vector []float32
 	}
 	done := make(chan []Result, 8)
 	search := func(r, index int, data []float32) {
-		buffer, vector := make([]byte, sizes[index]*EntryLineSize), make([]float32, 256)
+		buffer := make([]byte, sizes[index]*EntryLineSize)
 		_, err := in[r].Seek(int64(Offset+sums[index]*EntryLineSize), io.SeekStart)
 		if err != nil {
 			panic(err)
@@ -503,6 +508,7 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 		}
 		candidates := make([]Result, sizes[index])
 		for j := 0; j < int(sizes[index]); j++ {
+			vector := make([]float32, 256)
 			for k := range vector {
 				var bits uint32
 				for l := 0; l < 4; l++ {
@@ -520,13 +526,14 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 					Index:  symbolIndex,
 					Symbol: symbol,
 				},
-				CS: max,
+				CS:     max,
+				Vector: vector,
 			}
 		}
 		sort.Slice(candidates, func(i, j int) bool {
 			return candidates[i].CS > candidates[j].CS
 		})
-		size := uint64(4)
+		size := uint64(64)
 		if sizes[index] < size {
 			size = sizes[index]
 		}
@@ -539,7 +546,9 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 	var symbols []byte
 	for i := 0; i < *FlagCount; i++ {
 		var data [256]float32
-		m.Mix(&data)
+		vec := &data
+		vectors = append(vectors, vec)
+		m.Mix(vec)
 		type Index struct {
 			Index int
 			Value float32
@@ -568,12 +577,43 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 			return results[i].CS > results[j].CS
 		})
 
-		m.Add(results[0].Symbol)
-		symbols = append(symbols, results[0].Symbol)
+		length := len(vectors) + len(results)
+		graph := pagerank.NewGraph()
+		for j := 0; j < length; j++ {
+			for k := 0; k < length; k++ {
+				var x, y []float32
+				if j < len(vectors) {
+					x = (*vectors[j])[:]
+				} else {
+					x = results[j-len(vectors)].Vector
+				}
+				if k < len(vectors) {
+					y = (*vectors[k])[:]
+				} else {
+					y = results[k-len(vectors)].Vector
+				}
+				cs := CS(x, y)
+				graph.Link(uint32(i), uint32(j), float64(cs))
+			}
+		}
+		ranks := make([]float64, length)
+		graph.Rank(1.0, 1e-3, func(node uint32, rank float64) {
+			ranks[node] = rank
+		})
+		index, max := 0, 0.0
+		for j := len(vectors); j < length; j++ {
+			if ranks[j] > max {
+				index, max = j, ranks[j]
+			}
+		}
+		index -= len(vectors)
+
+		m.Add(results[index].Symbol)
+		symbols = append(symbols, results[index].Symbol)
 		if utf8.FullRune(symbols) {
-			results[0].S = string(symbols)
+			results[index].S = string(symbols)
 			symbols = []byte{}
-			result = append(result, results[0].Output)
+			result = append(result, results[index].Output)
 		}
 	}
 
