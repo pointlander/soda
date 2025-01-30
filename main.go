@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"time"
 )
@@ -30,6 +31,8 @@ var (
 	FlagBuild = flag.Bool("build", false, "build the database")
 	// FlagServer is server mode
 	FlagServer = flag.Bool("server", false, "server mode")
+	// FlagBrute is the brute force mode
+	FlagBrute = flag.Bool("brute", false, "brute force mode")
 )
 
 // Root is the root file
@@ -92,6 +95,53 @@ func (h Handler) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	response.Write(data)
 }
 
+// Brute is brute force mode
+func Brute() {
+	query := []byte("Go")
+	context := NewMatrix(256, 0)
+	m := NewMixer()
+	for _, v := range query {
+		m.Add(v)
+		var vector [256]float32
+		m.Mix(&vector)
+		cp := make([]float64, len(vector))
+		for i := range cp {
+			cp[i] = float64(vector[i])
+		}
+		context = context.AddRow(cp)
+	}
+
+	file, err := Data.Open("books/10.txt.utf-8.bz2")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+	reader := bzip2.NewReader(file)
+	input, err := io.ReadAll(reader)
+	if err != nil {
+		panic(err)
+	}
+
+	index, symbol, min := 0, byte(0), float32(math.MaxFloat32)
+	var vector [256]float32
+	cp := make([]float64, len(vector))
+	entropy := make([]float32, context.Rows+1)
+	end := len(entropy) - 1
+	for i, v := range input {
+		m.Add(v)
+		m.Mix(&vector)
+		for i := range vector {
+			cp[i] = float64(vector[i])
+		}
+		context := context.AddRow(cp)
+		SelfEntropy(context, entropy)
+		if e := entropy[end]; e < min {
+			min, index, symbol = e, i, v
+			fmt.Printf("%f %d %d %c\n", min, index, symbol, symbol)
+		}
+	}
+}
+
 func main() {
 	flag.Parse()
 
@@ -122,6 +172,9 @@ func main() {
 			fmt.Println("Failed to start server", err)
 			return
 		}
+		return
+	} else if *FlagBrute {
+		Brute()
 		return
 	}
 
