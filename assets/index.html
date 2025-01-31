@@ -60,7 +60,7 @@
     {
      method: "POST",
      body: query,
-     signal: AbortSignal.timeout(30000)
+     signal: AbortSignal.timeout(10*60*1000)
     })
     .then(function(response){ 
      return response.text(); 

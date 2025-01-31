@@ -160,8 +160,8 @@ func main() {
 		s := &http.Server{
 			Addr:           ":8080",
 			Handler:        mux,
-			ReadTimeout:    30 * time.Second,
-			WriteTimeout:   30 * time.Second,
+			ReadTimeout:    10 * 60 * time.Second,
+			WriteTimeout:   10 * 60 * time.Second,
 			MaxHeaderBytes: 1 << 20,
 		}
 		err := s.ListenAndServe()
