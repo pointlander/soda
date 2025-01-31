@@ -59,7 +59,8 @@
     fetch("/infer",
     {
      method: "POST",
-     body: query
+     body: query,
+     signal: AbortSignal.timeout(30000)
     })
     .then(function(response){ 
      return response.text(); 

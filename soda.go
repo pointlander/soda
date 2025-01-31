@@ -459,6 +459,7 @@ func Build() {
 // Soda is the soda model
 func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 	cpus := runtime.NumCPU()
+	rng := rand.New(rand.NewSource(1))
 	in := make([]*os.File, cpus)
 	for i := range in {
 		var err error
@@ -600,11 +601,17 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 		graph.Rank(1.0, 1e-3, func(node uint32, rank float64) {
 			ranks[node] = rank
 		})
-		index, max := 0, 0.0
+		index, total := 0, 0.0
 		for j := len(vectors); j < length; j++ {
-			if ranks[j] > max {
-				index, max = j, ranks[j]
+			total += ranks[j]
+		}
+		sum, selection := 0.0, rng.Float64()
+		for j := len(vectors); j < length; j++ {
+			if selection < sum {
+				index = j
+				break
 			}
+			sum += ranks[j] / sum
 		}
 		index -= len(vectors)
 
