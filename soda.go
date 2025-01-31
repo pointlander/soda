@@ -592,6 +592,12 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (searches []Search) {
 				return results[i].CS > results[j].CS
 			})
 
+			size := 8
+			if len(results) < size {
+				size = len(results)
+			}
+			results = results[:size]
+
 			length := len(vectors) + len(results)
 			graph := pagerank.NewGraph()
 			for j := 0; j < length; j++ {
