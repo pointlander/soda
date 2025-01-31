@@ -456,8 +456,14 @@ func Build() {
 	}
 }
 
+// Search is a search of the tree
+type Search struct {
+	Result []Output
+	Rank   float64
+}
+
 // Soda is the soda model
-func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
+func (h Header) Soda(sizes, sums []uint64, query []byte) (searches []Search) {
 	cpus := runtime.NumCPU()
 	rng := rand.New(rand.NewSource(1))
 	in := make([]*os.File, cpus)
@@ -475,6 +481,11 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 	}()
 
 	vectors := []*[256]float32{}
+	cp := func() []*[256]float32 {
+		vec := make([]*[256]float32, len(vectors))
+		copy(vec, vectors)
+		return vec
+	}
 	m := NewMixer()
 	for _, v := range query {
 		m.Add(v)
@@ -543,86 +554,113 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (output []Output) {
 		done <- results
 	}
 
-	result := make([]Output, 0, 8)
-	var symbols []byte
-	for i := 0; i < *FlagCount; i++ {
-		var data [256]float32
-		vec := &data
-		vectors = append(vectors, vec)
-		m.Mix(vec)
-		type Index struct {
-			Index int
-			Value float32
-		}
-		indexes := make([]Index, len(h))
-		for i := range h {
-			if sizes[i] == 0 {
-				continue
+	for s := 0; s < 8; s++ {
+		fmt.Println("s=", s)
+		m, vectors := m.Copy(), cp()
+		result, rank := make([]Output, 0, 8), 0.0
+		var symbols []byte
+		for i := 0; i < *FlagCount; i++ {
+			var data [256]float32
+			vec := &data
+			vectors = append(vectors, vec)
+			m.Mix(vec)
+			type Index struct {
+				Index int
+				Value float32
 			}
-			indexes[i].Index = i
-			indexes[i].Value = CS(h[i].Vector[:], data[:])
-		}
-		sort.Slice(indexes, func(i, j int) bool {
-			return indexes[i].Value > indexes[j].Value
-		})
-
-		var results []Result
-		for j := 0; j < cpus; j++ {
-			go search(j, indexes[j].Index, data[:])
-		}
-		for j := 0; j < cpus; j++ {
-			result := <-done
-			results = append(results, result...)
-		}
-		sort.Slice(results, func(i, j int) bool {
-			return results[i].CS > results[j].CS
-		})
-
-		length := len(vectors) + len(results)
-		graph := pagerank.NewGraph()
-		for j := 0; j < length; j++ {
-			for k := 0; k < length; k++ {
-				var x, y []float32
-				if j < len(vectors) {
-					x = (*vectors[j])[:]
-				} else {
-					x = results[j-len(vectors)].Vector
+			indexes := make([]Index, len(h))
+			for i := range h {
+				if sizes[i] == 0 {
+					continue
 				}
-				if k < len(vectors) {
-					y = (*vectors[k])[:]
-				} else {
-					y = results[k-len(vectors)].Vector
-				}
-				cs := CS(x, y)
-				graph.Link(uint32(i), uint32(j), float64(cs))
+				indexes[i].Index = i
+				indexes[i].Value = CS(h[i].Vector[:], data[:])
 			}
-		}
-		ranks := make([]float64, length)
-		graph.Rank(1.0, 1e-3, func(node uint32, rank float64) {
-			ranks[node] = rank
-		})
-		index, total := 0, 0.0
-		for j := len(vectors); j < length; j++ {
-			total += ranks[j]
-		}
-		sum, selection := 0.0, rng.Float64()
-		for j := len(vectors); j < length; j++ {
-			if selection < sum {
-				index = j
-				break
-			}
-			sum += ranks[j] / sum
-		}
-		index -= len(vectors)
+			sort.Slice(indexes, func(i, j int) bool {
+				return indexes[i].Value > indexes[j].Value
+			})
 
-		m.Add(results[index].Symbol)
-		symbols = append(symbols, results[index].Symbol)
-		if utf8.FullRune(symbols) {
-			results[index].S = string(symbols)
-			symbols = []byte{}
-			result = append(result, results[index].Output)
+			var results []Result
+			for j := 0; j < cpus; j++ {
+				go search(j, indexes[j].Index, data[:])
+			}
+			for j := 0; j < cpus; j++ {
+				result := <-done
+				results = append(results, result...)
+			}
+			sort.Slice(results, func(i, j int) bool {
+				return results[i].CS > results[j].CS
+			})
+
+			length := len(vectors) + len(results)
+			graph := pagerank.NewGraph()
+			for j := 0; j < length; j++ {
+				for k := 0; k < length; k++ {
+					var x, y []float32
+					if j < len(vectors) {
+						x = (*vectors[j])[:]
+					} else {
+						x = results[j-len(vectors)].Vector
+					}
+					if k < len(vectors) {
+						y = (*vectors[k])[:]
+					} else {
+						y = results[k-len(vectors)].Vector
+					}
+					cs := CS(x, y)
+					graph.Link(uint32(i), uint32(j), float64(cs))
+				}
+			}
+			ranks := make([]float64, length)
+			graph.Rank(1.0, 1e-3, func(node uint32, rank float64) {
+				ranks[node] = rank
+			})
+			index, total := 0, 0.0
+			for j := len(vectors); j < length; j++ {
+				total += ranks[j]
+			}
+			sum, selection := 0.0, rng.Float64()
+			for j := len(vectors); j < length; j++ {
+				sum += ranks[j] / total
+				if selection < sum {
+					index = j
+					break
+				}
+			}
+			rank += ranks[index] / total
+			index -= len(vectors)
+
+			/*index, total := 0, 0.0
+			for r := range results {
+				total += float64(results[r].CS)
+			}
+			sum, selection := 0.0, rng.Float64()
+			for r := range results {
+				sum += float64(results[r].CS) / total
+				if selection < sum {
+					index = r
+					break
+				}
+			}
+			rank += float64(results[index].CS) / total*/
+
+			m.Add(results[index].Symbol)
+			symbols = append(symbols, results[index].Symbol)
+			if utf8.FullRune(symbols) {
+				results[index].S = string(symbols)
+				symbols = []byte{}
+				result = append(result, results[index].Output)
+			}
 		}
+		searches = append(searches, Search{
+			Result: result,
+			Rank:   rank,
+		})
 	}
 
-	return result
+	sort.Slice(searches, func(i, j int) bool {
+		return searches[i].Rank > searches[j].Rank
+	})
+
+	return searches
 }

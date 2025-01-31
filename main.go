@@ -85,8 +85,8 @@ func (h Handler) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		panic(err)
 	}
 	request.Body.Close()
-	output := h.Header.Soda(h.Sizes, h.Sums, query)
-	data, err := json.Marshal(output)
+	searches := h.Header.Soda(h.Sizes, h.Sums, query)
+	data, err := json.Marshal(searches[0].Result)
 	if err != nil {
 		panic(err)
 	}
@@ -176,10 +176,14 @@ func main() {
 	}
 
 	header, sizes, sums := LoadHeader()
-	output := header.Soda(sizes, sums, []byte(*FlagQuery))
-	str := []byte(*FlagQuery)
-	for i := range output {
-		str = append(str, output[i].Symbol)
+	searches := header.Soda(sizes, sums, []byte(*FlagQuery))
+	for _, search := range searches {
+		output := search.Result
+		str := []byte(*FlagQuery)
+		for i := range output {
+			str = append(str, output[i].Symbol)
+		}
+		fmt.Println(string(str))
+		fmt.Println(search.Rank, " ---------------------------------------")
 	}
-	fmt.Println(string(str))
 }
