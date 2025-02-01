@@ -30,6 +30,8 @@ var (
 	FlagCount = flag.Int("count", 128, "number of symbols to generate")
 	// FlagBuild build the database
 	FlagBuild = flag.Bool("build", false, "build the database")
+	// FlagMoar use more training data
+	FlagMoar = flag.Bool("moar", false, "use more training data")
 	// FlagServer is server mode
 	FlagServer = flag.Bool("server", false, "server mode")
 	// FlagBrute is the brute force mode
@@ -37,6 +39,13 @@ var (
 	// FlagRank is page rank mode
 	FlagRank = flag.Bool("rank", false, "page rank mode")
 )
+
+var Moar = []string{
+	"books/84.txt.utf-8.bz2",   // Frankenstein; Or, The Modern Prometheus
+	"books/2701.txt.utf-8.bz2", // Moby Dick; Or, The Whale
+	"books/1513.txt.utf-8.bz2", // Romeo and Juliet
+	"books/1342.txt.utf-8.bz2", // Pride and Prejudice
+}
 
 // Root is the root file
 type Root struct{}
@@ -70,6 +79,21 @@ func (b Bible) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	input, err := io.ReadAll(reader)
 	if err != nil {
 		panic(err)
+	}
+	if *FlagMoar {
+		for _, f := range Moar {
+			file, err := Data.Open(f)
+			if err != nil {
+				panic(err)
+			}
+			defer file.Close()
+			reader := bzip2.NewReader(file)
+			data, err := io.ReadAll(reader)
+			if err != nil {
+				panic(err)
+			}
+			input = append(input, data...)
+		}
 	}
 	response.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	response.Write(input)

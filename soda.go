@@ -319,6 +319,21 @@ func Build() {
 	if err != nil {
 		panic(err)
 	}
+	if *FlagMoar {
+		for _, f := range Moar {
+			file, err := Data.Open(f)
+			if err != nil {
+				panic(err)
+			}
+			defer file.Close()
+			reader := bzip2.NewReader(file)
+			data, err := io.ReadAll(reader)
+			if err != nil {
+				panic(err)
+			}
+			input = append(input, data...)
+		}
+	}
 	data := input
 	counts := make([]uint64, len(data))
 	{
