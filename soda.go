@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/pointlander/gradient/tf32"
+	"github.com/pointlander/soda/vector"
 
 	"github.com/alixaxel/pagerank"
 	"gonum.org/v1/plot"
@@ -253,7 +254,10 @@ func NewHeader(data []byte) Header {
 			z.Data = append(z.Data, float32(rng.NormFloat64()))
 		}
 		x := A.MulT(z).Add(u)
-		copy(model[i].Vector[:], x.Data)
+		aa := sqrt(vector.Dot(x.Data, x.Data))
+		for j, v := range x.Data {
+			model[i].Vector[j] = v / aa
+		}
 	}
 	return model
 }
