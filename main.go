@@ -146,7 +146,7 @@ func Brute() {
 	}
 	vectors := make([]Vector, len(input))
 	m := NewMixer()
-	m.Add(0)
+	m.Zero()
 	vector := make([]float32, Size)
 	for i, v := range input {
 		m.MixEntropy(vector)
@@ -157,6 +157,7 @@ func Brute() {
 
 	query := []byte("Go")
 	m = NewMixer()
+	m.Zero()
 	for _, v := range query {
 		m.Add(v)
 	}
@@ -194,7 +195,7 @@ func Rank() {
 	if *FlagBuild {
 		model := make([]Entry, len(input))
 		m := NewMixer()
-		m.Add(0)
+		m.Zero()
 		for i, v := range input {
 			m.MixRank(&model[i].Vector)
 			model[i].Symbol = v
@@ -252,6 +253,7 @@ func Rank() {
 	}
 
 	m := NewMixer()
+	m.Zero()
 	for _, v := range []byte(*FlagQuery) {
 		m.Add(v)
 	}

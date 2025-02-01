@@ -49,40 +49,46 @@ func (h *Histogram) Add(s byte) {
 // Mixer mixes several histograms together
 type Mixer struct {
 	Markov     Markov
-	Histograms []Histogram
+	Histograms [256][]Histogram
 }
 
 // NewMixer makes a new mixer
 func NewMixer() Mixer {
-	histograms := make([]Histogram, Size)
-	histograms[0] = NewHistogram(1)
-	histograms[1] = NewHistogram(2)
-	histograms[2] = NewHistogram(4)
-	histograms[3] = NewHistogram(8)
-	histograms[4] = NewHistogram(16)
-	histograms[5] = NewHistogram(32)
-	histograms[6] = NewHistogram(64)
-	histograms[7] = NewHistogram(128)
-	return Mixer{
-		Histograms: histograms,
+	m := Mixer{}
+	for i := range m.Histograms {
+		histograms := make([]Histogram, Size)
+		histograms[0] = NewHistogram(1)
+		histograms[1] = NewHistogram(2)
+		histograms[2] = NewHistogram(4)
+		histograms[3] = NewHistogram(8)
+		histograms[4] = NewHistogram(16)
+		histograms[5] = NewHistogram(32)
+		histograms[6] = NewHistogram(64)
+		histograms[7] = NewHistogram(128)
+		m.Histograms[i] = histograms
 	}
+	return m
 }
 
 func (m Mixer) Copy() Mixer {
-	histograms := make([]Histogram, Size)
-	for i := range m.Histograms {
-		histograms[i] = m.Histograms[i]
+	cp := Mixer{
+		Markov: m.Markov,
 	}
-	return Mixer{
-		Markov:     m.Markov,
-		Histograms: histograms,
+	for i := range cp.Histograms {
+		histograms := make([]Histogram, Size)
+		for j := range m.Histograms[i] {
+			histograms[j] = m.Histograms[i][j]
+		}
+		cp.Histograms[i] = histograms
 	}
+	return cp
 }
 
 // Add adds a symbol to a mixer
 func (m *Mixer) Add(s byte) {
-	for i := range m.Histograms {
-		m.Histograms[i].Add(s)
+	index := m.Markov[0]
+	for i := range m.Histograms[index] {
+		m.Histograms[index][i].Add(s)
 	}
 	for k := Order; k > 0; k-- {
 		m.Markov[k] = m.Markov[k-1]
@@ -90,15 +96,25 @@ func (m *Mixer) Add(s byte) {
 	m.Markov[0] = s
 }
 
+// Zero adds a zero to each context
+func (m *Mixer) Zero() {
+	for i := range m.Histograms {
+		for j := range m.Histograms[i] {
+			m.Histograms[i][j].Add(0)
+		}
+	}
+}
+
 // Mix mixes the histograms outputting a matrix
 func (m Mixer) Mix(output *[256]float32) {
 	x := NewMatrix(256, Size)
-	for i := range m.Histograms {
+	index := m.Markov[0]
+	for i := range m.Histograms[index] {
 		sum := float32(0.0)
-		for _, v := range m.Histograms[i].Vector {
+		for _, v := range m.Histograms[index][i].Vector {
 			sum += float32(v)
 		}
-		for _, v := range m.Histograms[i].Vector {
+		for _, v := range m.Histograms[index][i].Vector {
 			x.Data = append(x.Data, float32(v)/sum)
 		}
 	}
@@ -108,12 +124,13 @@ func (m Mixer) Mix(output *[256]float32) {
 // MixEntropy mixes the histograms and outputs entropy
 func (m Mixer) MixEntropy(output []float32) {
 	x := NewMatrix(256, Size)
-	for i := range m.Histograms {
+	index := m.Markov[0]
+	for i := range m.Histograms[index] {
 		sum := float32(0.0)
-		for _, v := range m.Histograms[i].Vector {
+		for _, v := range m.Histograms[index][i].Vector {
 			sum += float32(v)
 		}
-		for _, v := range m.Histograms[i].Vector {
+		for _, v := range m.Histograms[index][i].Vector {
 			x.Data = append(x.Data, float32(v)/sum)
 		}
 	}
@@ -127,12 +144,13 @@ func (m Mixer) MixEntropy(output []float32) {
 // MixRank mixes the histograms and outputs page rank
 func (m Mixer) MixRank(output *[Size]float32) {
 	x := NewMatrix(256, Size)
-	for i := range m.Histograms {
+	index := m.Markov[0]
+	for i := range m.Histograms[index] {
 		sum := float32(0.0)
-		for _, v := range m.Histograms[i].Vector {
+		for _, v := range m.Histograms[index][i].Vector {
 			sum += float32(v)
 		}
-		for _, v := range m.Histograms[i].Vector {
+		for _, v := range m.Histograms[index][i].Vector {
 			x.Data = append(x.Data, float32(v)/sum)
 		}
 	}
