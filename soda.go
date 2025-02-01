@@ -106,7 +106,7 @@ func NewHeader(data []byte) Header {
 
 	avg := make([]float32, 256)
 	m := NewMixer()
-	m.Add(0)
+	m.Zero()
 	for _, v := range data {
 		var vector [256]float32
 		m.Mix(&vector)
@@ -120,7 +120,7 @@ func NewHeader(data []byte) Header {
 	}
 	cov := [256][256]float32{}
 	m = NewMixer()
-	m.Add(0)
+	m.Zero()
 	for _, v := range data {
 		var vector [256]float32
 		m.Mix(&vector)
@@ -357,7 +357,7 @@ func Build() {
 	pool, item := make([]Vector, len(data)+1), uint64(1)
 
 	done, m, index, flight := make(chan Result, cpus), NewMixer(), 0, 0
-	m.Add(0)
+	m.Zero()
 	for index < len(data) && flight < cpus {
 		symbol := data[index]
 		m.Mix(&pool[item].Vector)
@@ -504,6 +504,7 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (searches []Search) {
 		return vec
 	}
 	m := NewMixer()
+	m.Zero()
 	for _, v := range query {
 		m.Add(v)
 		var vector [256]float32
