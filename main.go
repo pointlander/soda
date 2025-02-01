@@ -221,6 +221,57 @@ func Rank() {
 
 		return
 	}
+
+	m := NewMixer()
+	for _, v := range []byte(*FlagQuery) {
+		m.Add(v)
+	}
+
+	db, err := os.Open("rdb.bin")
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	buffer, err := io.ReadAll(db)
+	if err != nil {
+		panic(err)
+	}
+
+	const EntryLineSize = 8*4 + 1 + 8
+	model := make([]Entry, len(input))
+	for j := range model {
+		vector := [Size]float32{}
+		for k := range vector {
+			var bits uint32
+			for l := 0; l < 4; l++ {
+				bits |= uint32(buffer[j*EntryLineSize+4*k+l]) << (8 * l)
+			}
+			vector[k] = math.Float32frombits(bits)
+		}
+		symbolIndex, symbol := uint64(0), buffer[(j+1)*EntryLineSize-1-8]
+		for k := 0; k < 8; k++ {
+			symbolIndex |= uint64(buffer[(j+1)*EntryLineSize-8+k]) << (8 * k)
+		}
+		model[j].Vector = vector
+		model[j].Symbol = symbol
+		model[j].Index = symbolIndex
+	}
+
+	symbols := []byte{}
+	for i := 0; i < 128; i++ {
+		max, vector, symbol := float32(0.0), [Size]float32{}, byte(0)
+		m.MixRank(&vector)
+		for j := range model {
+			cs := CS(vector[:], model[j].Vector[:])
+			if cs > max {
+				max, symbol = cs, model[j].Symbol
+			}
+		}
+		symbols = append(symbols, symbol)
+		m.Add(symbol)
+	}
+	fmt.Println(string(symbols))
 }
 
 func main() {
