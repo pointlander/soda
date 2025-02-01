@@ -253,9 +253,7 @@ func NewHeader(data []byte) Header {
 			z.Data = append(z.Data, float32(rng.NormFloat64()))
 		}
 		x := A.MulT(z).Add(u)
-		for j, v := range x.Data {
-			model[i].Vector[j] = float32(v)
-		}
+		copy(model[i].Vector[:], x.Data)
 	}
 	return model
 }

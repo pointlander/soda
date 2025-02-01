@@ -133,15 +133,9 @@ func (m Mixer) MixRank(output *[Size]float32) {
 	}
 	graph := pagerank.NewGraph()
 	for i := 0; i < Size; i++ {
-		a := make([]float32, 256)
-		for i, v := range x.Data[i*256 : i*256+256] {
-			a[i] = float32(v)
-		}
+		a := x.Data[i*256 : i*256+256]
 		for j := 0; j < Size; j++ {
-			b := make([]float32, 256)
-			for i, v := range x.Data[j*256 : j*256+256] {
-				b[i] = float32(v)
-			}
+			b := x.Data[j*256 : j*256+256]
 			cs := CS(a, b)
 			graph.Link(uint32(i), uint32(j), float64(cs))
 		}

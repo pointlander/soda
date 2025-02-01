@@ -187,7 +187,7 @@ func SelfAttention(input Matrix, output *[256]float32) {
 		}
 	}
 	for i, v := range sums {
-		output[i] = float32(v)
+		output[i] = v
 	}
 }
 
