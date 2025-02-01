@@ -4,6 +4,10 @@
 
 package main
 
+import (
+	"github.com/alixaxel/pagerank"
+)
+
 const (
 	// Size is the number of histograms
 	Size = 8
@@ -113,4 +117,36 @@ func (m Mixer) MixEntropy(output []float32) {
 		}
 	}
 	SelfEntropy(x, output)
+}
+
+// MixRank mixes the histograms and outputs page rank
+func (m Mixer) MixRank(output *[Size]float32) {
+	x := NewMatrix(256, Size)
+	for i := range m.Histograms {
+		sum := 0.0
+		for _, v := range m.Histograms[i].Vector {
+			sum += float64(v)
+		}
+		for _, v := range m.Histograms[i].Vector {
+			x.Data = append(x.Data, float64(v)/sum)
+		}
+	}
+	graph := pagerank.NewGraph()
+	for i := 0; i < Size; i++ {
+		a := make([]float32, 256)
+		for i, v := range x.Data[i*256 : i*256+256] {
+			a[i] = float32(v)
+		}
+		for j := 0; j < Size; j++ {
+			b := make([]float32, 256)
+			for i, v := range x.Data[j*256 : j*256+256] {
+				b[i] = float32(v)
+			}
+			cs := CS(a, b)
+			graph.Link(uint32(i), uint32(j), float64(cs))
+		}
+	}
+	graph.Rank(1.0, 1e-3, func(node uint32, rank float64) {
+		output[node] = float32(rank)
+	})
 }

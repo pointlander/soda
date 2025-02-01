@@ -32,6 +32,8 @@ var (
 	FlagServer = flag.Bool("server", false, "server mode")
 	// FlagBrute is the brute force mode
 	FlagBrute = flag.Bool("brute", false, "brute force mode")
+	// FlagRank is page rank mode
+	FlagRank = flag.Bool("rank", false, "page rank mode")
 )
 
 // Root is the root file
@@ -139,6 +141,35 @@ func Brute() {
 	}
 }
 
+// Rank is page rank mode
+func Rank() {
+	file, err := Data.Open("books/10.txt.utf-8.bz2")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+	reader := bzip2.NewReader(file)
+	input, err := io.ReadAll(reader)
+	if err != nil {
+		panic(err)
+	}
+
+	type Entry struct {
+		Vector [Size]float32
+		Symbol byte
+	}
+
+	db := make([]Entry, len(input))
+	m := NewMixer()
+	m.Add(0)
+	for i, v := range input {
+		m.MixRank(&db[i].Vector)
+		db[i].Symbol = v
+		m.Add(v)
+		fmt.Println(i, "/", len(input))
+	}
+}
+
 func main() {
 	flag.Parse()
 
@@ -172,6 +203,9 @@ func main() {
 		return
 	} else if *FlagBrute {
 		Brute()
+		return
+	} else if *FlagRank {
+		Rank()
 		return
 	}
 
