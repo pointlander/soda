@@ -51,7 +51,7 @@ func (m Matrix) MulT(n Matrix) Matrix {
 		nn := n.Data[i : i+columns]
 		for j := 0; j < lenm; j += columns {
 			mm := m.Data[j : j+columns]
-			o.Data = append(o.Data, dot(mm, nn))
+			o.Data = append(o.Data, vector.Dot(mm, nn))
 		}
 	}
 	return o
@@ -143,13 +143,6 @@ func (m Matrix) AddRow(row []float32) Matrix {
 	return o
 }
 
-func dot(x, y []float32) (z float32) {
-	for i := range x {
-		z += x[i] * y[i]
-	}
-	return z
-}
-
 func softmax(values []float32) {
 	max := float32(0.0)
 	for _, v := range values {
@@ -177,17 +170,18 @@ func SelfAttention(input Matrix, output *[256]float32) {
 		K := input.Data[i*input.Cols : (i+1)*input.Cols]
 		for j := 0; j < input.Rows; j++ {
 			Q := input.Data[j*input.Cols : (j+1)*input.Cols]
-			values[j] = dot(K, Q)
+			values[j] = vector.Dot(K, Q)
 		}
 		softmax(values)
 
 		for j := 0; j < V.Rows; j++ {
 			V := V.Data[j*V.Cols : (j+1)*V.Cols]
-			sums[j] += dot(values, V)
+			sums[j] += vector.Dot(values, V)
 		}
 	}
+	aa := sqrt(vector.Dot(sums, sums))
 	for i, v := range sums {
-		output[i] = v
+		output[i] = v / aa
 	}
 }
 
@@ -200,13 +194,13 @@ func SelfEntropy(input Matrix, output []float32) {
 		K := input.Data[i*input.Cols : (i+1)*input.Cols]
 		for j := 0; j < input.Rows; j++ {
 			Q := input.Data[j*input.Cols : (j+1)*input.Cols]
-			values[j] = dot(K, Q)
+			values[j] = vector.Dot(K, Q)
 		}
 		softmax(values)
 
 		for j := 0; j < V.Rows; j++ {
 			V := V.Data[j*V.Cols : (j+1)*V.Cols]
-			sums[j] = dot(values, V)
+			sums[j] = vector.Dot(values, V)
 		}
 		softmax(sums)
 		entropy := float32(0.0)
@@ -219,6 +213,5 @@ func SelfEntropy(input Matrix, output []float32) {
 
 // CS is float32 cosine similarity
 func CS(a []float32, b []float32) float32 {
-	aa, bb, ab := vector.Dot(a, a), vector.Dot(b, b), vector.Dot(a, b)
-	return float32(ab / (sqrt(aa) * sqrt(bb)))
+	return vector.Dot(a, b)
 }

@@ -6,6 +6,7 @@ package main
 
 import (
 	"github.com/alixaxel/pagerank"
+	"github.com/pointlander/soda/vector"
 )
 
 const (
@@ -117,6 +118,10 @@ func (m Mixer) MixEntropy(output []float32) {
 		}
 	}
 	SelfEntropy(x, output)
+	aa := sqrt(vector.Dot(output, output))
+	for i, v := range output {
+		output[i] = v / aa
+	}
 }
 
 // MixRank mixes the histograms and outputs page rank
@@ -143,4 +148,9 @@ func (m Mixer) MixRank(output *[Size]float32) {
 	graph.Rank(1.0, 1e-3, func(node uint32, rank float64) {
 		output[node] = float32(rank)
 	})
+	a := output[:]
+	aa := sqrt(vector.Dot(a, a))
+	for i, v := range output {
+		output[i] = v / aa
+	}
 }
