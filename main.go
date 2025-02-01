@@ -41,10 +41,15 @@ var (
 )
 
 var Moar = []string{
-	"books/84.txt.utf-8.bz2",   // Frankenstein; Or, The Modern Prometheus
-	"books/2701.txt.utf-8.bz2", // Moby Dick; Or, The Whale
-	"books/1513.txt.utf-8.bz2", // Romeo and Juliet
-	"books/1342.txt.utf-8.bz2", // Pride and Prejudice
+	"books/84.txt.utf-8.bz2",    // 2 Frankenstein; Or, The Modern Prometheus
+	"books/2701.txt.utf-8.bz2",  // 3 Moby Dick; Or, The Whale
+	"books/1513.txt.utf-8.bz2",  // 4 Romeo and Juliet
+	"books/1342.txt.utf-8.bz2",  // 5 Pride and Prejudice
+	"books/11.txt.utf-8.bz2",    // 6 Alice's Adventures in Wonderland
+	"books/145.txt.utf-8.bz2",   // 7 Middlemarch
+	"books/2641.txt.utf-8.bz2",  // 8 A Room with a View
+	"books/37106.txt.utf-8.bz2", // 9 Little Women; Or, Meg, Jo, Beth, and Amy
+	"books/64317.txt.utf-8.bz2", // 10 The Great Gatsby
 }
 
 // Root is the root file
