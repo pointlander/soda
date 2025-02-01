@@ -93,12 +93,12 @@ func (m *Mixer) Add(s byte) {
 func (m Mixer) Mix(output *[256]float32) {
 	x := NewMatrix(256, Size)
 	for i := range m.Histograms {
-		sum := 0.0
+		sum := float32(0.0)
 		for _, v := range m.Histograms[i].Vector {
-			sum += float64(v)
+			sum += float32(v)
 		}
 		for _, v := range m.Histograms[i].Vector {
-			x.Data = append(x.Data, float64(v)/sum)
+			x.Data = append(x.Data, float32(v)/sum)
 		}
 	}
 	SelfAttention(x, output)
@@ -108,12 +108,12 @@ func (m Mixer) Mix(output *[256]float32) {
 func (m Mixer) MixEntropy(output []float32) {
 	x := NewMatrix(256, Size)
 	for i := range m.Histograms {
-		sum := 0.0
+		sum := float32(0.0)
 		for _, v := range m.Histograms[i].Vector {
-			sum += float64(v)
+			sum += float32(v)
 		}
 		for _, v := range m.Histograms[i].Vector {
-			x.Data = append(x.Data, float64(v)/sum)
+			x.Data = append(x.Data, float32(v)/sum)
 		}
 	}
 	SelfEntropy(x, output)
@@ -123,12 +123,12 @@ func (m Mixer) MixEntropy(output []float32) {
 func (m Mixer) MixRank(output *[Size]float32) {
 	x := NewMatrix(256, Size)
 	for i := range m.Histograms {
-		sum := 0.0
+		sum := float32(0.0)
 		for _, v := range m.Histograms[i].Vector {
-			sum += float64(v)
+			sum += float32(v)
 		}
 		for _, v := range m.Histograms[i].Vector {
-			x.Data = append(x.Data, float64(v)/sum)
+			x.Data = append(x.Data, float32(v)/sum)
 		}
 	}
 	graph := pagerank.NewGraph()

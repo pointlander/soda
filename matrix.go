@@ -13,20 +13,20 @@ import (
 
 const (
 	// S is the scaling factor for the softmax
-	S = 1.0 - 1e-300
+	S = 1.0 - 1e38*math.SmallestNonzeroFloat32
 )
 
 // Matrix is a float64 matrix
 type Matrix struct {
 	Cols int
 	Rows int
-	Data []float64
+	Data []float32
 }
 
 // NewMatrix creates a new float32 matrix
-func NewMatrix(cols, rows int, data ...float64) Matrix {
+func NewMatrix(cols, rows int, data ...float32) Matrix {
 	if data == nil {
-		data = make([]float64, 0, cols*rows)
+		data = make([]float32, 0, cols*rows)
 	}
 	return Matrix{
 		Cols: cols,
@@ -44,7 +44,7 @@ func (m Matrix) MulT(n Matrix) Matrix {
 	o := Matrix{
 		Cols: m.Rows,
 		Rows: n.Rows,
-		Data: make([]float64, 0, m.Rows*n.Rows),
+		Data: make([]float32, 0, m.Rows*n.Rows),
 	}
 	lenn, lenm := len(n.Data), len(m.Data)
 	for i := 0; i < lenn; i += columns {
@@ -67,7 +67,7 @@ func (m Matrix) Add(n Matrix) Matrix {
 	o := Matrix{
 		Cols: m.Cols,
 		Rows: m.Rows,
-		Data: make([]float64, 0, m.Cols*m.Rows),
+		Data: make([]float32, 0, m.Cols*m.Rows),
 	}
 	for i, value := range m.Data {
 		o.Data = append(o.Data, value+n.Data[i%lenb])
@@ -76,9 +76,9 @@ func (m Matrix) Add(n Matrix) Matrix {
 }
 
 // Softmax calculates the softmax of the matrix rows
-func (m Matrix) Softmax(T float64) Matrix {
+func (m Matrix) Softmax(T float32) Matrix {
 	output := NewMatrix(m.Cols, m.Rows)
-	max := 0.0
+	max := float32(0.0)
 	for _, v := range m.Data {
 		v /= T
 		if v > max {
@@ -87,10 +87,10 @@ func (m Matrix) Softmax(T float64) Matrix {
 	}
 	s := max * S
 	for i := 0; i < len(m.Data); i += m.Cols {
-		sum := 0.0
-		values := make([]float64, m.Cols)
+		sum := float32(0.0)
+		values := make([]float32, m.Cols)
 		for j, value := range m.Data[i : i+m.Cols] {
-			values[j] = math.Exp(value/T - s)
+			values[j] = exp(value/T - s)
 			sum += values[j]
 		}
 		for _, value := range values {
@@ -104,9 +104,9 @@ func (m Matrix) Softmax(T float64) Matrix {
 func (m Matrix) Entropy() Matrix {
 	output := NewMatrix(m.Rows, 1)
 	for i := 0; i < len(m.Data); i += m.Cols {
-		entropy := 0.0
+		entropy := float32(0.0)
 		for _, value := range m.Data[i : i+m.Cols] {
-			entropy += value * math.Log(value)
+			entropy += value * log(value)
 		}
 		output.Data = append(output.Data, -entropy)
 	}
@@ -118,7 +118,7 @@ func (m Matrix) T() Matrix {
 	o := Matrix{
 		Cols: m.Rows,
 		Rows: m.Cols,
-		Data: make([]float64, 0, m.Cols*m.Rows),
+		Data: make([]float32, 0, m.Cols*m.Rows),
 	}
 	for i := 0; i < m.Cols; i++ {
 		for j := 0; j < m.Rows; j++ {
@@ -129,38 +129,38 @@ func (m Matrix) T() Matrix {
 }
 
 // AddRow adds a row to a matrix
-func (m Matrix) AddRow(row []float64) Matrix {
+func (m Matrix) AddRow(row []float32) Matrix {
 	if len(row) != m.Cols {
 		panic("incorrect number of columns")
 	}
 	o := Matrix{
 		Cols: m.Cols,
 		Rows: m.Rows + 1,
-		Data: make([]float64, m.Cols*m.Rows),
+		Data: make([]float32, m.Cols*m.Rows),
 	}
 	copy(o.Data, m.Data)
 	o.Data = append(o.Data, row...)
 	return o
 }
 
-func dot(x, y []float64) (z float64) {
+func dot(x, y []float32) (z float32) {
 	for i := range x {
 		z += x[i] * y[i]
 	}
 	return z
 }
 
-func softmax(values []float64) {
-	max := 0.0
+func softmax(values []float32) {
+	max := float32(0.0)
 	for _, v := range values {
 		if v > max {
 			max = v
 		}
 	}
 	s := max * S
-	sum := 0.0
+	sum := float32(0.0)
 	for j, value := range values {
-		values[j] = math.Exp(value - s)
+		values[j] = exp(value - s)
 		sum += values[j]
 	}
 	for j, value := range values {
@@ -170,9 +170,9 @@ func softmax(values []float64) {
 
 // SelfAttention computes the self attention of Q, K, V
 func SelfAttention(input Matrix, output *[256]float32) {
-	values := make([]float64, input.Rows)
+	values := make([]float32, input.Rows)
 	V := input.T()
-	sums := make([]float64, V.Rows)
+	sums := make([]float32, V.Rows)
 	for i := 0; i < input.Rows; i++ {
 		K := input.Data[i*input.Cols : (i+1)*input.Cols]
 		for j := 0; j < input.Rows; j++ {
@@ -193,9 +193,9 @@ func SelfAttention(input Matrix, output *[256]float32) {
 
 // SelfEntropy computes the self entropy of Q, K, V
 func SelfEntropy(input Matrix, output []float32) {
-	values := make([]float64, input.Rows)
+	values := make([]float32, input.Rows)
 	V := input.T()
-	sums := make([]float64, V.Rows)
+	sums := make([]float32, V.Rows)
 	for i := 0; i < input.Rows; i++ {
 		K := input.Data[i*input.Cols : (i+1)*input.Cols]
 		for j := 0; j < input.Rows; j++ {
@@ -209,16 +209,12 @@ func SelfEntropy(input Matrix, output []float32) {
 			sums[j] = dot(values, V)
 		}
 		softmax(sums)
-		entropy := 0.0
+		entropy := float32(0.0)
 		for _, v := range sums {
-			entropy += v * math.Log(v)
+			entropy += v * log(v)
 		}
 		output[i] = -float32(entropy)
 	}
-}
-
-func sqrt(a float32) float32 {
-	return float32(math.Sqrt(float64(a)))
 }
 
 // CS is float32 cosine similarity

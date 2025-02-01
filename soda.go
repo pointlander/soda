@@ -103,21 +103,21 @@ func NewHeader(data []byte) Header {
 	model := make(Header, ModelSize*1024)
 	rng := rand.New(rand.NewSource(1))
 
-	avg := make([]float64, 256)
+	avg := make([]float32, 256)
 	m := NewMixer()
 	m.Add(0)
 	for _, v := range data {
 		var vector [256]float32
 		m.Mix(&vector)
 		for i, v := range vector {
-			avg[i] += float64(v)
+			avg[i] += v
 		}
 		m.Add(v)
 	}
 	for i := range avg {
-		avg[i] /= float64(len(data))
+		avg[i] /= float32(len(data))
 	}
-	cov := [256][256]float64{}
+	cov := [256][256]float32{}
 	m = NewMixer()
 	m.Add(0)
 	for _, v := range data {
@@ -125,8 +125,8 @@ func NewHeader(data []byte) Header {
 		m.Mix(&vector)
 		for i, v := range vector {
 			for ii, vv := range vector {
-				diff1 := avg[i] - float64(v)
-				diff2 := avg[ii] - float64(vv)
+				diff1 := avg[i] - v
+				diff2 := avg[ii] - vv
 				cov[i][ii] += diff1 * diff2
 			}
 		}
@@ -134,7 +134,7 @@ func NewHeader(data []byte) Header {
 	}
 	for i := range cov {
 		for j := range cov[i] {
-			cov[i][j] = cov[i][j] / float64(len(data))
+			cov[i][j] = cov[i][j] / float32(len(data))
 		}
 	}
 	fmt.Println(avg)
@@ -167,7 +167,7 @@ func NewHeader(data []byte) Header {
 	E := others.ByName["E"]
 	for i := range cov {
 		for j := range cov[i] {
-			E.X = append(E.X, float32(cov[i][j]))
+			E.X = append(E.X, cov[i][j])
 		}
 	}
 
@@ -197,7 +197,7 @@ func NewHeader(data []byte) Header {
 				norm += d * d
 			}
 		}
-		norm = float32(math.Sqrt(float64(norm)))
+		norm = sqrt(norm)
 		b1, b2 := pow(B1), pow(B2)
 		scaling := float32(1.0)
 		if norm > 1 {
@@ -215,7 +215,7 @@ func NewHeader(data []byte) Header {
 				if vhat < 0 {
 					vhat = 0
 				}
-				w.X[l] -= Eta * mhat / (float32(math.Sqrt(float64(vhat))) + 1e-8)
+				w.X[l] -= Eta * mhat / (sqrt(vhat) + 1e-8)
 			}
 		}
 		points = append(points, plotter.XY{X: float64(i), Y: float64(cost)})
@@ -243,14 +243,14 @@ func NewHeader(data []byte) Header {
 
 	A := NewMatrix(256, 256)
 	for _, v := range set.ByName["A"].X {
-		A.Data = append(A.Data, float64(v))
+		A.Data = append(A.Data, v)
 	}
 	u := NewMatrix(256, 1, avg...)
 	fmt.Println(ModelSize * 1024 * 512 * 4.0 / (1024.0 * 1024.0 * 1024.0))
 	for i := range model {
 		z := NewMatrix(256, 1)
 		for j := 0; j < 256; j++ {
-			z.Data = append(z.Data, rng.NormFloat64())
+			z.Data = append(z.Data, float32(rng.NormFloat64()))
 		}
 		x := A.MulT(z).Add(u)
 		for j, v := range x.Data {
@@ -493,10 +493,6 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (searches []Search) {
 		vec := &vector
 		vectors = append(vectors, vec)
 		m.Mix(vec)
-		cp := make([]float64, len(vector))
-		for i := range cp {
-			cp[i] = float64(vector[i])
-		}
 	}
 
 	type Result struct {
@@ -636,19 +632,19 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (searches []Search) {
 			rank += ranks[index] / total
 			index -= len(vectors)
 
-			/*index, total := 0, 0.0
+			/*index, total := 0, float32(0.0)
 			for r := range results {
-				total += float64(results[r].CS)
+				total += results[r].CS
 			}
-			sum, selection := 0.0, rng.Float64()
+			sum, selection := float32(0.0), rng.Float32()
 			for r := range results {
-				sum += float64(results[r].CS) / total
+				sum += results[r].CS / total
 				if selection < sum {
 					index = r
 					break
 				}
 			}
-			rank += float64(results[index].CS) / total*/
+			rank += results[index].CS / total*/
 
 			m.Add(results[index].Symbol)
 			symbols = append(symbols, results[index].Symbol)
