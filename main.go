@@ -11,7 +11,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -157,23 +159,77 @@ func Rank() {
 	type Entry struct {
 		Vector [Size]float32
 		Symbol byte
+		Index  uint64
 	}
 
-	db := make([]Entry, len(input))
-	m := NewMixer()
-	m.Add(0)
-	for i, v := range input {
-		m.MixRank(&db[i].Vector)
-		db[i].Symbol = v
-		m.Add(v)
-		fmt.Println(i, "/", len(input))
+	if *FlagBuild {
+		model := make([]Entry, len(input))
+		m := NewMixer()
+		m.Add(0)
+		for i, v := range input {
+			m.MixRank(&model[i].Vector)
+			model[i].Symbol = v
+			model[i].Index = uint64(i)
+			m.Add(v)
+			fmt.Println(i, "/", len(input))
+		}
+
+		db, err := os.Create("rdb.bin")
+		if err != nil {
+			panic(err)
+		}
+		defer db.Close()
+
+		buffer32 := make([]byte, 4)
+		buffer64 := make([]byte, 8)
+		symbol := make([]byte, 1)
+		for i := range model {
+			vector := model[i].Vector
+			for _, v := range vector {
+				bits := math.Float32bits(v)
+				for i := range buffer32 {
+					buffer32[i] = byte((bits >> (8 * i)) & 0xFF)
+				}
+				n, err := db.Write(buffer32)
+				if err != nil {
+					panic(err)
+				}
+				if n != len(buffer32) {
+					panic("4 bytes should be been written")
+				}
+			}
+			symbol[0] = model[i].Symbol
+			n, err := db.Write(symbol)
+			if err != nil {
+				panic(err)
+			}
+			if n != len(symbol) {
+				panic("1 bytes should be been written")
+			}
+
+			for i := range buffer64 {
+				buffer64[i] = byte((model[i].Index >> (8 * i)) & 0xFF)
+			}
+			n, err = db.Write(buffer64)
+			if err != nil {
+				panic(err)
+			}
+			if n != len(buffer64) {
+				panic("8 bytes should be been written")
+			}
+		}
+
+		return
 	}
 }
 
 func main() {
 	flag.Parse()
 
-	if *FlagBuild {
+	if *FlagRank {
+		Rank()
+		return
+	} else if *FlagBuild {
 		Build()
 		return
 	} else if *FlagServer {
@@ -203,9 +259,6 @@ func main() {
 		return
 	} else if *FlagBrute {
 		Brute()
-		return
-	} else if *FlagRank {
-		Rank()
 		return
 	}
 
