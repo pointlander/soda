@@ -19,7 +19,7 @@ import (
 	"github.com/pointlander/gradient/tf32"
 	"github.com/pointlander/soda/vector"
 
-	"github.com/alixaxel/pagerank"
+	//"github.com/alixaxel/pagerank"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
@@ -611,7 +611,7 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (searches []Search) {
 			}
 			results = results[:size]
 
-			length := len(vectors) + len(results)
+			/*length := len(vectors) + len(results)
 			graph := pagerank.NewGraph()
 			for j := 0; j < length; j++ {
 				for k := 0; k < length; k++ {
@@ -647,9 +647,9 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (searches []Search) {
 				}
 			}
 			rank += ranks[index] / total
-			index -= len(vectors)
+			index -= len(vectors)*/
 
-			/*index, total := 0, float32(0.0)
+			index, total := 0, float32(0.0)
 			for r := range results {
 				total += results[r].CS
 			}
@@ -661,7 +661,7 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (searches []Search) {
 					break
 				}
 			}
-			rank += results[index].CS / total*/
+			rank += float64(results[index].CS / total)
 
 			m.Add(results[index].Symbol)
 			symbols = append(symbols, results[index].Symbol)
