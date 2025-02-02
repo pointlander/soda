@@ -50,6 +50,16 @@ var Moar = []string{
 	"books/2641.txt.utf-8.bz2",  // 8 A Room with a View
 	"books/37106.txt.utf-8.bz2", // 9 Little Women; Or, Meg, Jo, Beth, and Amy
 	"books/64317.txt.utf-8.bz2", // 10 The Great Gatsby
+	"books/100.txt.utf-8.bz2",   // 11 The Complete Works of William Shakespeare
+	"books/75256.txt.utf-8.bz2", // 12 Pirate tales from the law
+	"books/16389.txt.utf-8.bz2", // 13 The Enchanted April
+	"books/67979.txt.utf-8.bz2", // 14 The Blue Castle: a novel
+	"books/394.txt.utf-8.bz2",   // 15 Cranford
+	"books/6761.txt.utf-8.bz2",  // 16 The Adventures of Ferdinand Count Fathom — Complete
+	"books/2542.txt.utf-8.bz2",  // 17 A Doll's House : a play
+	"books/2160.txt.utf-8.bz2",  // 18 The Expedition of Humphry Clinker
+	"books/4085.txt.utf-8.bz2",  // 19 The Adventures of Roderick Random
+	"books/6593.txt.utf-8.bz2",  // 20 History of Tom Jones, a Foundling
 }
 
 // Root is the root file
