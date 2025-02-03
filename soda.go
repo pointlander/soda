@@ -482,7 +482,7 @@ type Search struct {
 // Soda is the soda model
 func (h Header) Soda(sizes, sums []uint64, query []byte) (searches []Search) {
 	cpus := runtime.NumCPU()
-	rng := rand.New(rand.NewSource(1))
+	//rng := rand.New(rand.NewSource(1))
 	in := make([]*os.File, cpus)
 	for i := range in {
 		var err error
@@ -567,7 +567,7 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (searches []Search) {
 		done <- results
 	}
 
-	for s := 0; s < 8; s++ {
+	for s := 0; s < 1; s++ {
 		fmt.Println("s=", s)
 		m, vectors := m.Copy(), cp()
 		result, rank := make([]Output, 0, 8), 0.0
@@ -649,7 +649,7 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (searches []Search) {
 			rank += ranks[index] / total
 			index -= len(vectors)*/
 
-			index, total := 0, float32(0.0)
+			/*index, total := 0, float32(0.0)
 			for r := range results {
 				total += results[r].CS
 			}
@@ -661,8 +661,9 @@ func (h Header) Soda(sizes, sums []uint64, query []byte) (searches []Search) {
 					break
 				}
 			}
-			rank += float64(results[index].CS / total)
+			rank += float64(results[index].CS / total)*/
 
+			index := 0
 			m.Add(results[index].Symbol)
 			symbols = append(symbols, results[index].Symbol)
 			if utf8.FullRune(symbols) {
